@@ -1,0 +1,23 @@
+motor_driver:
+  ros__parameters:
+    gpio_chip: 4
+    pwm_frequency: 1000
+    max_speed: 1.0
+    min_duty: 0.3
+    watchdog_timeout: 0.5
+    front_left:
+      en: 23
+      in1: 25
+      in2: 24
+    front_right:
+      en: 18
+      in1: 21
+      in2: 20
+    rear_left:
+      en: 13
+      in1: 19
+      in2: 16
+    rear_right:
+      en: 12
+      in1: 6
+      in2: 5

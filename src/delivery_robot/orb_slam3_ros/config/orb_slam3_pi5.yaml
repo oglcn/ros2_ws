@@ -1,0 +1,53 @@
+%YAML:1.0
+
+# ORB-SLAM3 configuration for Pi Camera Module 3 (IMX708) at 640x480
+# Tuned for Raspberry Pi 5 performance (reduced features, optimized thresholds)
+
+#--------------------------------------------------------------------------------------------
+# Camera Parameters
+#--------------------------------------------------------------------------------------------
+Camera.type: "PinHole"
+
+# Camera intrinsics (from calibration -- update after running calibrate_camera)
+Camera1.fx: 500.0
+Camera1.fy: 500.0
+Camera1.cx: 320.0
+Camera1.cy: 240.0
+
+# Distortion parameters (update from calibration)
+Camera1.k1: 0.0
+Camera1.k2: 0.0
+Camera1.p1: 0.0
+Camera1.p2: 0.0
+
+# Camera resolution
+Camera.width: 640
+Camera.height: 480
+
+# Camera frames per second
+Camera.fps: 30
+
+# Color order (0: BGR, 1: RGB)
+Camera.RGB: 0
+
+#--------------------------------------------------------------------------------------------
+# ORB Parameters -- Tuned for Pi 5 (reduced from defaults for performance)
+#--------------------------------------------------------------------------------------------
+
+# Number of features per image (default 1000, reduced for Pi 5)
+ORBextractor.nFeatures: 600
+
+# Scale factor between levels in the scale pyramid
+ORBextractor.scaleFactor: 1.2
+
+# Number of levels in the scale pyramid (default 8, reduced for speed)
+ORBextractor.nLevels: 6
+
+# Fast threshold (higher = fewer features but faster)
+ORBextractor.iniThFAST: 20
+ORBextractor.minThFAST: 7
+
+#--------------------------------------------------------------------------------------------
+# Viewer Parameters (disabled for headless Pi 5)
+#--------------------------------------------------------------------------------------------
+Viewer.UseViewer: 0

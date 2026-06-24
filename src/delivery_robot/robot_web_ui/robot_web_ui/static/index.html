@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Delivery Robot</title>
+<style>
+:root {
+  --bg: #0f172a; --surface: #1e293b; --border: #334155;
+  --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8;
+  --green: #22c55e; --red: #ef4444; --yellow: #eab308;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg); color: var(--text);
+  min-height: 100vh; overflow-x: hidden;
+}
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .75rem 1rem; background: var(--surface); border-bottom: 1px solid var(--border);
+}
+header h1 { font-size: 1.1rem; color: var(--accent); }
+.conn { display:flex; align-items:center; gap:.4rem; font-size:.8rem; }
+.conn .dot { width:8px; height:8px; border-radius:50%; background:var(--red); }
+.conn.ok .dot { background: var(--green); }
+
+.layout {
+  display: grid; gap: .75rem; padding: .75rem;
+  grid-template-columns: 1fr;
+  max-width: 1200px; margin: 0 auto;
+}
+@media(min-width:768px) {
+  .layout { grid-template-columns: 2fr 1fr; }
+  .cam-panel { grid-row: 1/3; }
+}
+
+.panel {
+  background: var(--surface); border-radius: 10px;
+  border: 1px solid var(--border); overflow: hidden;
+}
+.panel-head {
+  padding: .5rem .75rem; font-size: .75rem; font-weight: 600;
+  color: var(--muted); text-transform: uppercase; letter-spacing: .05em;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Camera */
+.cam-panel img { display:block; width:100%; height:auto; background:#000; }
+
+/* Joystick */
+.joy-area {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 1rem; gap: .75rem;
+}
+#joystick-zone {
+  width: 200px; height: 200px; border-radius: 50%;
+  background: radial-gradient(circle, #1e293b 0%, #0f172a 100%);
+  border: 2px solid var(--border); position: relative;
+  touch-action: none; cursor: crosshair;
+}
+#joy-knob {
+  width: 60px; height: 60px; border-radius: 50%;
+  background: var(--accent); opacity: .85;
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none; transition: none;
+}
+#joy-vector {
+  position:absolute; top:50%; left:50%; width:2px;
+  background: var(--accent); transform-origin: bottom center;
+  pointer-events:none; opacity:.5;
+}
+
+/* Rotation slider */
+.rot-row { display:flex; align-items:center; gap:.5rem; width:100%; }
+.rot-row label { font-size:.75rem; color:var(--muted); white-space:nowrap; }
+#rot-slider { flex:1; accent-color: var(--accent); }
+
+/* Speed slider */
+.speed-row { display:flex; align-items:center; gap:.5rem; width:100%; }
+.speed-row label { font-size:.75rem; color:var(--muted); white-space:nowrap; }
+#speed-slider { flex:1; accent-color: var(--accent); }
+#speed-val { font-size:.8rem; font-family:monospace; min-width:3ch; }
+
+/* Keyboard hints */
+.keys { display:grid; grid-template-columns:repeat(5,1fr); gap:4px; width:100%; }
+.key {
+  text-align:center; padding:6px 2px; border-radius:6px;
+  background: var(--bg); border:1px solid var(--border);
+  font-size:.7rem; font-family:monospace; color:var(--muted);
+  transition: background .1s, color .1s;
+}
+.key.active { background:var(--accent); color:#0f172a; border-color:var(--accent); }
+.key small { display:block; font-size:.55rem; margin-top:2px; opacity:.7; }
+
+/* Motor status */
+.motor-grid { display:grid; grid-template-columns:1fr 1fr; gap:.5rem; padding:.75rem; }
+.motor-card {
+  padding:.5rem; border-radius:8px; background:var(--bg);
+  border:1px solid var(--border); text-align:center;
+}
+.motor-card .name { font-size:.7rem; color:var(--muted); margin-bottom:4px; }
+.motor-bar-bg {
+  height:8px; border-radius:4px; background:var(--border); overflow:hidden;
+  position:relative;
+}
+.motor-bar-bg::after {
+  content:''; position:absolute; top:0; left:50%;
+  width:2px; height:100%; background:var(--muted); opacity:.5;
+  transform:translateX(-1px);
+}
+.motor-bar {
+  position:absolute; top:0; height:100%; border-radius:4px;
+  transition: left .15s, width .15s;
+  width:0%;
+}
+.motor-bar.fwd { background:var(--accent); left:50%; }
+.motor-bar.rev { background:var(--yellow); right:50%; }
+.motor-val { font-size:.7rem; font-family:monospace; margin-top:3px; }
+.motor-dir { font-size:.6rem; color:var(--muted); }
+
+/* Mode */
+.mode-row { display:flex; gap:.5rem; padding:.75rem; }
+.mode-btn {
+  flex:1; padding:.5rem; border-radius:8px; border:1px solid var(--border);
+  background:var(--bg); color:var(--muted); font-size:.8rem; cursor:pointer;
+}
+.mode-btn.active { background:var(--accent); color:#0f172a; border-color:var(--accent); font-weight:600; }
+.mode-btn:disabled { opacity:.4; cursor:not-allowed; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Delivery Robot</h1>
+  <div style="display:flex; align-items:center; gap:1rem;">
+    <div class="conn" id="gamepad-status">
+      <div class="dot"></div>
+      <span>No Gamepad</span>
+    </div>
+    <div class="conn" id="conn">
+      <div class="dot"></div>
+      <span>Disconnected</span>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- Camera -->
+  <div class="panel cam-panel">
+    <div class="panel-head">Camera Feed</div>
+    <img id="cam" src="/stream" alt="Camera">
+  </div>
+
+  <!-- Controls -->
+  <div class="panel">
+    <div class="panel-head">Controls</div>
+    <div class="joy-area">
+      <div id="joystick-zone">
+        <div id="joy-knob"></div>
+      </div>
+
+      <div class="rot-row">
+        <label>Rotate</label>
+        <input type="range" id="rot-slider" min="-100" max="100" value="0" step="1">
+        <label>QE</label>
+      </div>
+
+      <div class="speed-row">
+        <label>Speed</label>
+        <input type="range" id="speed-slider" min="10" max="100" value="100" step="5">
+        <span id="speed-val">1.0x</span>
+      </div>
+
+      <div class="keys">
+        <div class="key" data-key="q">Q<small>rot L</small></div>
+        <div class="key" style="grid-column:2" data-key="w">W<small>fwd</small></div>
+        <div class="key" data-key="e">E<small>rot R</small></div>
+        <div class="key" data-key="a">A<small>left</small></div>
+        <div class="key" style="grid-column:2" data-key="s">S<small>back</small></div>
+        <div class="key" data-key="d">D<small>right</small></div>
+        <div class="key" style="grid-column:4/6" data-key="shift">Shift<small>boost</small></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status -->
+  <div class="panel">
+    <div class="panel-head">Motor Status</div>
+    <div class="motor-grid">
+      <div class="motor-card" id="mc-fl"><div class="name">Front Left</div><div class="motor-bar-bg"><div class="motor-bar"></div></div><div class="motor-val">0%</div><div class="motor-dir"></div></div>
+      <div class="motor-card" id="mc-fr"><div class="name">Front Right</div><div class="motor-bar-bg"><div class="motor-bar"></div></div><div class="motor-val">0%</div><div class="motor-dir"></div></div>
+      <div class="motor-card" id="mc-rl"><div class="name">Rear Left</div><div class="motor-bar-bg"><div class="motor-bar"></div></div><div class="motor-val">0%</div><div class="motor-dir"></div></div>
+      <div class="motor-card" id="mc-rr"><div class="name">Rear Right</div><div class="motor-bar-bg"><div class="motor-bar"></div></div><div class="motor-val">0%</div><div class="motor-dir"></div></div>
+    </div>
+    <div class="mode-row">
+      <button class="mode-btn active" id="mode-manual">Manual</button>
+      <button class="mode-btn" id="mode-auto" disabled>Autonomous</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // --- WebSocket ---
+  let ws = null;
+  const connEl = document.getElementById('conn');
+  function wsConnect() {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${proto}://${location.host}/ws`);
+    ws.onopen = () => {
+      connEl.className = 'conn ok';
+      connEl.querySelector('span').textContent = 'Connected';
+    };
+    ws.onclose = () => {
+      connEl.className = 'conn';
+      connEl.querySelector('span').textContent = 'Disconnected';
+      setTimeout(wsConnect, 2000);
+    };
+    ws.onerror = () => ws.close();
+    ws.onmessage = (e) => {
+      try { handleStatus(JSON.parse(e.data)); } catch(_) {}
+    };
+  }
+  wsConnect();
+
+  function sendCmd(lx, ly, az) {
+    if (ws && ws.readyState === 1) {
+      ws.send(JSON.stringify({cmd_vel: {lx, ly, az}}));
+    }
+  }
+
+  // --- Motor status display ---
+  const motorCards = ['fl','fr','rl','rr'].map(id => {
+    const el = document.getElementById('mc-' + id);
+    return {
+      bar: el.querySelector('.motor-bar'),
+      val: el.querySelector('.motor-val'),
+      dir: el.querySelector('.motor-dir'),
+    };
+  });
+
+  function handleStatus(data) {
+    if (!data.status) return;
+    const s = data.status;
+    (s.duty_cycles || []).forEach((d, i) => {
+      if (!motorCards[i]) return;
+      const pct = Math.abs(d) * 100;
+      const halfPct = pct / 2;
+      const bar = motorCards[i].bar;
+      if (d >= 0) {
+        bar.className = 'motor-bar fwd';
+        bar.style.left = '50%';
+        bar.style.right = 'auto';
+        bar.style.width = halfPct + '%';
+      } else {
+        bar.className = 'motor-bar rev';
+        bar.style.right = '50%';
+        bar.style.left = 'auto';
+        bar.style.width = halfPct + '%';
+      }
+      const sign = d > 0.001 ? '+' : d < -0.001 ? '-' : '';
+      motorCards[i].val.textContent = sign + pct.toFixed(0) + '%';
+      motorCards[i].dir.textContent = d > 0.001 ? 'FWD' : d < -0.001 ? 'REV' : '';
+    });
+  }
+
+  // --- Speed multiplier ---
+  const speedSlider = document.getElementById('speed-slider');
+  const speedVal = document.getElementById('speed-val');
+  let speedMult = 1.0;
+  speedSlider.addEventListener('input', () => {
+    speedMult = parseInt(speedSlider.value) / 100;
+    speedVal.textContent = speedMult.toFixed(1) + 'x';
+  });
+
+  // --- Joystick ---
+  const zone = document.getElementById('joystick-zone');
+  const knob = document.getElementById('joy-knob');
+  let joyActive = false;
+  let joyX = 0, joyY = 0;
+
+  function joyPos(e) {
+    const rect = zone.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const r = rect.width / 2 - 30;
+    let clientX, clientY;
+    if (e.touches) { clientX = e.touches[0].clientX; clientY = e.touches[0].clientY; }
+    else { clientX = e.clientX; clientY = e.clientY; }
+    let dx = clientX - cx, dy = clientY - cy;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist > r) { dx = dx/dist*r; dy = dy/dist*r; }
+    return {dx, dy, nx: dx/r, ny: -dy/r};
+  }
+
+  function joyStart(e) {
+    e.preventDefault(); joyActive = true;
+    joyMove(e);
+  }
+  function joyMove(e) {
+    if (!joyActive) return;
+    e.preventDefault();
+    const {dx, dy, nx, ny} = joyPos(e);
+    knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    joyX = nx; joyY = ny;
+    // Apply dead zone
+    if (Math.abs(joyX) < 0.08) joyX = 0;
+    if (Math.abs(joyY) < 0.08) joyY = 0;
+  }
+  function joyEnd() {
+    joyActive = false; joyX = 0; joyY = 0;
+    knob.style.transform = 'translate(-50%, -50%)';
+  }
+
+  zone.addEventListener('mousedown', joyStart);
+  zone.addEventListener('touchstart', joyStart, {passive:false});
+  window.addEventListener('mousemove', joyMove);
+  window.addEventListener('touchmove', joyMove, {passive:false});
+  window.addEventListener('mouseup', joyEnd);
+  window.addEventListener('touchend', joyEnd);
+
+  // --- Rotation slider ---
+  const rotSlider = document.getElementById('rot-slider');
+  let rotVal = 0;
+  rotSlider.addEventListener('input', () => { rotVal = parseInt(rotSlider.value) / 100; });
+  rotSlider.addEventListener('mouseup', () => { rotSlider.value = 0; rotVal = 0; });
+  rotSlider.addEventListener('touchend', () => { rotSlider.value = 0; rotVal = 0; });
+
+  // --- Keyboard ---
+  const pressed = {};
+  const keyEls = {};
+  document.querySelectorAll('.key[data-key]').forEach(el => {
+    keyEls[el.dataset.key] = el;
+  });
+
+  window.addEventListener('keydown', (e) => {
+    const k = e.key.toLowerCase();
+    if (['w','a','s','d','q','e','shift'].includes(k)) {
+      e.preventDefault();
+      pressed[k] = true;
+      if (keyEls[k]) keyEls[k].classList.add('active');
+    }
+  });
+  window.addEventListener('keyup', (e) => {
+    const k = e.key.toLowerCase();
+    delete pressed[k];
+    if (keyEls[k]) keyEls[k].classList.remove('active');
+  });
+
+  // --- Gamepad ---
+  const GP_DEADZONE = 0.15;
+  let gpConnected = false;
+  const gpEl = document.getElementById('gamepad-status');
+
+  function gpAxis(val) {
+    return Math.abs(val) < GP_DEADZONE ? 0 : val;
+  }
+
+  function readGamepad() {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    for (let i = 0; i < pads.length; i++) {
+      const gp = pads[i];
+      if (!gp || !gp.connected) continue;
+      const leftX  = gpAxis(gp.axes[0] || 0);
+      const leftY  = gpAxis(gp.axes[1] || 0);
+      const rightX = gpAxis(gp.axes[2] || 0);
+      const boost  = gp.buttons[7] ? gp.buttons[7].value : 0;
+      if (leftX || leftY || rightX || boost) {
+        return {
+          lx: -leftY,
+          ly: -leftX,
+          az: -rightX,
+          boost: boost > 0.1 ? 1.0 : speedMult,
+          active: true,
+        };
+      }
+      return { lx: 0, ly: 0, az: 0, boost: speedMult, active: false };
+    }
+    return null;
+  }
+
+  window.addEventListener('gamepadconnected', () => {
+    gpConnected = true;
+    gpEl.className = 'conn ok';
+    gpEl.querySelector('span').textContent = 'Gamepad';
+  });
+  window.addEventListener('gamepaddisconnected', () => {
+    gpConnected = false;
+    gpEl.className = 'conn';
+    gpEl.querySelector('span').textContent = 'No Gamepad';
+  });
+
+  // --- Command loop (20Hz) ---
+  // Priority: gamepad > keyboard > touch joystick
+  setInterval(() => {
+    let lx = joyY, ly = -joyX, az = -rotVal;
+    let boost = speedMult;
+
+    const gp = gpConnected ? readGamepad() : null;
+    if (gp && gp.active) {
+      lx = gp.lx;
+      ly = gp.ly;
+      az = gp.az;
+      boost = gp.boost;
+    } else if (pressed['w'] || pressed['s'] || pressed['a'] || pressed['d'] || pressed['q'] || pressed['e']) {
+      lx = 0; ly = 0; az = 0;
+      if (pressed['w']) lx += 1;
+      if (pressed['s']) lx -= 1;
+      if (pressed['a']) ly += 1;
+      if (pressed['d']) ly -= 1;
+      if (pressed['q']) az += 1;
+      if (pressed['e']) az -= 1;
+      boost = pressed['shift'] ? 1.0 : speedMult;
+    }
+
+    lx *= boost;
+    ly *= boost;
+    az *= boost;
+
+    sendCmd(
+      parseFloat(lx.toFixed(3)),
+      parseFloat(ly.toFixed(3)),
+      parseFloat(az.toFixed(3))
+    );
+  }, 50);
+
+})();
+</script>
+</body>
+</html>

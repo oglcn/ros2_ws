@@ -1,0 +1,40 @@
+---
+description: Delivery robot project conventions (ROS2 Jazzy on Pi 5)
+alwaysApply: true
+---
+
+# Delivery Robot Conventions
+
+## Platform
+- Raspberry Pi 5, Ubuntu 24.04, ROS2 Jazzy
+- Workspace: `~/ros2_ws`, packages in `src/delivery_robot/`
+
+## Package types
+- Python nodes use `ament_python` with `setup.py` + `setup.cfg`
+- Message packages use `ament_cmake` with `CMakeLists.txt`
+- Static assets (HTML/JS/CSS) go in `package_data`, not just `data_files`
+
+## Camera
+- `rpicam-vid` must launch in a clean env (no ROS2 `LD_LIBRARY_PATH`) to use PiSP-enabled libcamera
+- Raw Image publishing is off by default (`publish_raw: false`); enable only when a subscriber needs it
+
+## GPIO
+- Use `lgpio` library, NOT `RPi.GPIO`
+- Pi 5 header is `gpiochip4` (RP1 chip), not `gpiochip0`
+- User must be in `dialout` group; launch with `sg dialout`
+- Handle "GPIO busy" errors by calling `gpio_free` before `gpio_claim_output`
+
+## ROS2 Python pitfalls
+- Fixed-size array fields (`float32[4]`, `bool[4]`): assign elements individually, not via list
+- ROS2 numeric types are numpy: convert with `float()` / `bool()` before JSON serialization
+- Use BEST_EFFORT QoS with depth=1 for camera topics to minimize latency
+
+## Build
+- Incremental: `colcon build --packages-select <pkg>`
+- After config YAML changes, rebuild `delivery_robot_bringup`
+- After Python code changes, rebuild the specific package
+- Run with `~/start_robot.sh`
+
+## Frontend
+- Vanilla JS in `robot_web_ui/static/index.html`, no build tooling
+- WebSocket at `/ws` for cmd_vel and status; MJPEG at `/stream` for camera

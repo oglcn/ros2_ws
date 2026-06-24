@@ -1,0 +1,31 @@
+# ArUco marker map -- known marker positions in the map frame
+# Each marker has an ID and its position (x, y, z) in meters.
+# Orientation is assumed to be facing the camera (flat on wall/surface).
+#
+# Update these values to match your physical marker placements.
+# At minimum, one marker is needed to establish metric scale for VSLAM.
+
+marker_size: 0.15  # marker side length in meters
+dictionary: DICT_4X4_50
+
+markers:
+  # Origin marker -- defines the map coordinate origin
+  0:
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  # Example: marker 1 placed 3m along x-axis
+  1:
+    x: 3.0
+    y: 0.0
+    z: 0.0
+  # Example: marker 2 placed at a corner
+  2:
+    x: 3.0
+    y: 2.0
+    z: 0.0
+  # Example: marker 3 placed along y-axis
+  3:
+    x: 0.0
+    y: 2.0
+    z: 0.0

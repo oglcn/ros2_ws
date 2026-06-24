@@ -1,0 +1,40 @@
+# Camera calibration for Pi Camera Module 3 (IMX708) at 640x480
+# These are approximate values from the sensor spec sheet.
+# Run the calibration script for accurate values:
+#   ros2 run pi_camera_driver calibrate_camera
+#
+# Pi Camera Module 3 specs:
+#   Sensor: Sony IMX708, 11.9MP
+#   Horizontal FoV: ~66 degrees
+#   Focal length: 4.74mm, pixel size: 1.4um
+#   At 640x480: fx ≈ fy ≈ 500 pixels (approximate)
+
+image_width: 640
+image_height: 480
+
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [500.0, 0.0, 320.0,
+         0.0, 500.0, 240.0,
+         0.0, 0.0, 1.0]
+
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [0.0, 0.0, 0.0, 0.0, 0.0]
+
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1.0, 0.0, 0.0,
+         0.0, 1.0, 0.0,
+         0.0, 0.0, 1.0]
+
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [500.0, 0.0, 320.0, 0.0,
+         0.0, 500.0, 240.0, 0.0,
+         0.0, 0.0, 1.0, 0.0]
