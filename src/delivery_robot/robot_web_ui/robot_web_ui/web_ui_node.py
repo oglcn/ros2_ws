@@ -12,6 +12,7 @@ import asyncio
 import json
 import os
 import threading
+import time
 
 import rclpy
 from aiohttp import web
@@ -46,6 +47,11 @@ class WebUINode(Node):
         self._status_lock = threading.Lock()
         self._ws_clients: list[web.WebSocketResponse] = []
 
+        self._frame_count = 0
+        self._fps_window_start = time.monotonic()
+        self._camera_fps = 0.0
+        self._fps_lock = threading.Lock()
+
         self.create_subscription(
             CompressedImage, 'camera/image_raw/compressed',
             self._image_cb, FAST_QOS
@@ -63,6 +69,14 @@ class WebUINode(Node):
     def _image_cb(self, msg: CompressedImage):
         with self._frame_lock:
             self._latest_frame = bytes(msg.data)
+        with self._fps_lock:
+            self._frame_count += 1
+            now = time.monotonic()
+            elapsed = now - self._fps_window_start
+            if elapsed >= 1.0:
+                self._camera_fps = self._frame_count / elapsed
+                self._frame_count = 0
+                self._fps_window_start = now
 
     def _motor_status_cb(self, msg: MotorStatus):
         with self._status_lock:
@@ -149,6 +163,11 @@ class WebUINode(Node):
                         twist.linear.y = float(cv.get('ly', 0))
                         twist.angular.z = float(cv.get('az', 0))
                         self.cmd_vel_pub.publish(twist)
+                    elif 'ping' in data:
+                        await ws.send_json({
+                            'pong': data['ping'],
+                            'server_ts': int(time.time() * 1000),
+                        })
                 elif msg_raw.type == web.WSMsgType.ERROR:
                     break
         finally:
@@ -164,7 +183,10 @@ class WebUINode(Node):
             while not ws.closed:
                 with self._status_lock:
                     status = dict(self._motor_status)
+                with self._fps_lock:
+                    status['camera_fps'] = round(self._camera_fps, 1)
                 status['connected'] = True
+                status['server_ts'] = int(time.time() * 1000)
                 await ws.send_json({'status': status})
                 await asyncio.sleep(0.2)
         except (ConnectionResetError, asyncio.CancelledError):

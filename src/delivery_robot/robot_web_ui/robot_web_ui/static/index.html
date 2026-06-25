@@ -128,6 +128,24 @@ header h1 { font-size: 1.1rem; color: var(--accent); }
 }
 .mode-btn.active { background:var(--accent); color:#0f172a; border-color:var(--accent); font-weight:600; }
 .mode-btn:disabled { opacity:.4; cursor:not-allowed; }
+
+/* Stats overlay */
+.stats-bar {
+  display: flex; gap: 1rem; padding: .4rem .75rem;
+  font-size: .7rem; font-family: monospace; color: var(--muted);
+  border-top: 1px solid var(--border); background: var(--bg);
+  flex-wrap: wrap; align-items: center;
+}
+.stats-bar .stat {
+  display: flex; align-items: center; gap: .3rem;
+}
+.stats-bar .stat-val {
+  color: var(--text); font-weight: 600; min-width: 3.5ch;
+}
+.stats-bar .stat-val.good { color: var(--green); }
+.stats-bar .stat-val.warn { color: var(--yellow); }
+.stats-bar .stat-val.bad { color: var(--red); }
+.stats-bar .stat-label { opacity: .7; }
 </style>
 </head>
 <body>
@@ -151,6 +169,11 @@ header h1 { font-size: 1.1rem; color: var(--accent); }
   <div class="panel cam-panel">
     <div class="panel-head">Camera Feed</div>
     <img id="cam" src="/stream" alt="Camera">
+    <div class="stats-bar" id="stats-bar">
+      <div class="stat"><span class="stat-label">CAM</span><span class="stat-val" id="st-fps">--</span><span class="stat-label">fps</span></div>
+      <div class="stat"><span class="stat-label">RTT</span><span class="stat-val" id="st-rtt">--</span><span class="stat-label">ms</span></div>
+      <div class="stat"><span class="stat-label">CMD</span><span class="stat-val" id="st-cmd">--</span><span class="stat-label">Hz</span></div>
+    </div>
   </div>
 
   <!-- Controls -->
@@ -230,6 +253,7 @@ header h1 { font-size: 1.1rem; color: var(--accent); }
   function sendCmd(lx, ly, az) {
     if (ws && ws.readyState === 1) {
       ws.send(JSON.stringify({cmd_vel: {lx, ly, az}}));
+      cmdCount++;
     }
   }
 
@@ -243,9 +267,46 @@ header h1 { font-size: 1.1rem; color: var(--accent); }
     };
   });
 
+  // --- Stats monitor ---
+  const stFps = document.getElementById('st-fps');
+  const stRtt = document.getElementById('st-rtt');
+  const stCmd = document.getElementById('st-cmd');
+  let lastRtt = null;
+  let cmdCount = 0;
+  let cmdHz = 0;
+
+  setInterval(() => {
+    cmdHz = cmdCount;
+    cmdCount = 0;
+    stCmd.textContent = cmdHz;
+    stCmd.className = 'stat-val' + (cmdHz >= 18 ? ' good' : cmdHz >= 10 ? ' warn' : ' bad');
+  }, 1000);
+
+  function sendPing() {
+    if (ws && ws.readyState === 1) {
+      ws.send(JSON.stringify({ping: Date.now()}));
+    }
+  }
+  setInterval(sendPing, 1000);
+
+  function classifyFps(v) { return v >= 25 ? 'good' : v >= 15 ? 'warn' : 'bad'; }
+  function classifyRtt(v) { return v <= 50 ? 'good' : v <= 150 ? 'warn' : 'bad'; }
+
   function handleStatus(data) {
+    if (data.pong) {
+      lastRtt = Date.now() - data.pong;
+      stRtt.textContent = lastRtt;
+      stRtt.className = 'stat-val ' + classifyRtt(lastRtt);
+      return;
+    }
     if (!data.status) return;
     const s = data.status;
+
+    if (s.camera_fps !== undefined) {
+      const fps = s.camera_fps;
+      stFps.textContent = fps.toFixed(0);
+      stFps.className = 'stat-val ' + classifyFps(fps);
+    }
     (s.duty_cycles || []).forEach((d, i) => {
       if (!motorCards[i]) return;
       const pct = Math.abs(d) * 100;
@@ -368,15 +429,16 @@ header h1 { font-size: 1.1rem; color: var(--accent); }
       const leftX  = gpAxis(gp.axes[0] || 0);
       const leftY  = gpAxis(gp.axes[1] || 0);
       const rightX = gpAxis(gp.axes[2] || 0);
-      const boost  = gp.buttons[7] ? gp.buttons[7].value : 0;
-      if (leftX || leftY || rightX || boost) {
-        return {
-          lx: -leftY,
-          ly: -leftX,
-          az: -rightX,
-          boost: boost > 0.1 ? 1.0 : speedMult,
-          active: true,
-        };
+      const lt = gp.buttons[6] ? gp.buttons[6].value : 0;
+      const rt = gp.buttons[7] ? gp.buttons[7].value : 0;
+      const triggersActive = lt > GP_DEADZONE || rt > GP_DEADZONE;
+
+      const lx = triggersActive ? (rt - lt) : -leftY;
+      const ly = -leftX;
+      const az = -rightX;
+
+      if (lx || ly || az) {
+        return { lx, ly, az, boost: speedMult, active: true };
       }
       return { lx: 0, ly: 0, az: 0, boost: speedMult, active: false };
     }
