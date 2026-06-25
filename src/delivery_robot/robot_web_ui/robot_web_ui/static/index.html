@@ -28,10 +28,14 @@ header h1 { font-size: 1.1rem; color: var(--accent); }
 .layout {
   display: grid; gap: .75rem; padding: .75rem;
   grid-template-columns: 1fr;
-  max-width: 1200px; margin: 0 auto;
+  max-width: 1400px; margin: 0 auto;
 }
 @media(min-width:768px) {
   .layout { grid-template-columns: 2fr 1fr; }
+  .cam-panel { grid-row: 1/3; }
+}
+@media(min-width:1100px) {
+  .layout { grid-template-columns: 2fr 1fr 1fr; }
   .cam-panel { grid-row: 1/3; }
 }
 
@@ -46,7 +50,25 @@ header h1 { font-size: 1.1rem; color: var(--accent); }
 }
 
 /* Camera */
+.cam-panel { position: relative; }
+.cam-panel .cam-wrap { position: relative; display: block; }
 .cam-panel img { display:block; width:100%; height:auto; background:#000; }
+#aruco-overlay {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none;
+}
+.cam-fullscreen-btn {
+  position: absolute; top: .5rem; right: .5rem; z-index: 10;
+  background: rgba(15,23,42,0.7); border: 1px solid var(--border);
+  color: var(--muted); border-radius: 6px; padding: 6px 8px;
+  cursor: pointer; font-size: .75rem; line-height: 1;
+  transition: background .2s, color .2s;
+}
+.cam-fullscreen-btn:hover { background: var(--accent); color: #0f172a; }
+.cam-panel:fullscreen { background: #000; display: flex; align-items: center; justify-content: center; }
+.cam-panel:fullscreen .panel-head { display: none; }
+.cam-panel:fullscreen .cam-wrap { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+.cam-panel:fullscreen img { width: auto; height: 100%; max-width: 100%; object-fit: contain; }
 
 /* Joystick */
 .joy-area {
@@ -146,6 +168,52 @@ header h1 { font-size: 1.1rem; color: var(--accent); }
 .stats-bar .stat-val.warn { color: var(--yellow); }
 .stats-bar .stat-val.bad { color: var(--red); }
 .stats-bar .stat-label { opacity: .7; }
+
+/* Localization status panel */
+.loc-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; padding: .75rem;
+}
+.loc-item {
+  display: flex; align-items: center; gap: .4rem; font-size: .8rem;
+}
+.loc-item .dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.loc-item .label { color: var(--muted); font-size: .7rem; }
+.loc-item .value { font-family: monospace; font-size: .8rem; }
+.loc-pos {
+  grid-column: 1 / -1; display: flex; gap: 1rem; padding-top: .25rem;
+  font-family: monospace; font-size: .8rem;
+}
+.loc-pos span { color: var(--muted); }
+.calib-section {
+  padding: .75rem; border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+}
+.calib-btn {
+  padding: .4rem .75rem; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); font-size: .75rem; cursor: pointer;
+}
+.calib-btn:hover { border-color: var(--accent); }
+.calib-btn.cancel { border-color: var(--red); color: var(--red); }
+.calib-status { font-size: .75rem; color: var(--muted); }
+.calib-rms { font-size: .75rem; color: var(--green); }
+
+/* 2D Map */
+.map-wrap { padding: .5rem; }
+#map-canvas {
+  width: 100%; aspect-ratio: 1; background: var(--bg);
+  border-radius: 8px; border: 1px solid var(--border); display: block;
+}
+
+/* 3D Viewer */
+.viewer-wrap { padding: .5rem; }
+#three-container {
+  width: 100%; aspect-ratio: 1; background: #000;
+  border-radius: 8px; border: 1px solid var(--border); overflow: hidden;
+  position: relative;
+}
+#three-container canvas { width: 100% !important; height: 100% !important; }
 </style>
 </head>
 <body>
@@ -166,9 +234,13 @@ header h1 { font-size: 1.1rem; color: var(--accent); }
 
 <div class="layout">
   <!-- Camera -->
-  <div class="panel cam-panel">
+  <div class="panel cam-panel" id="cam-panel">
     <div class="panel-head">Camera Feed</div>
-    <img id="cam" src="/stream" alt="Camera">
+    <div class="cam-wrap">
+      <button class="cam-fullscreen-btn" id="cam-fs-btn" title="Toggle fullscreen">&#x26F6;</button>
+      <img id="cam" src="/stream" alt="Camera">
+      <canvas id="aruco-overlay"></canvas>
+    </div>
     <div class="stats-bar" id="stats-bar">
       <div class="stat"><span class="stat-label">CAM</span><span class="stat-val" id="st-fps">--</span><span class="stat-label">fps</span></div>
       <div class="stat"><span class="stat-label">RTT</span><span class="stat-val" id="st-rtt">--</span><span class="stat-label">ms</span></div>
@@ -208,7 +280,7 @@ header h1 { font-size: 1.1rem; color: var(--accent); }
     </div>
   </div>
 
-  <!-- Status -->
+  <!-- Motor Status -->
   <div class="panel">
     <div class="panel-head">Motor Status</div>
     <div class="motor-grid">
@@ -222,7 +294,131 @@ header h1 { font-size: 1.1rem; color: var(--accent); }
       <button class="mode-btn" id="mode-auto" disabled>Autonomous</button>
     </div>
   </div>
+
+  <!-- Localization Status -->
+  <div class="panel" id="loc-panel">
+    <div class="panel-head">Localization Status</div>
+    <div class="loc-grid">
+      <div class="loc-item">
+        <div class="dot" id="vslam-dot" style="background:var(--muted)"></div>
+        <div><div class="label">VSLAM</div><div class="value" id="vslam-state">--</div></div>
+      </div>
+      <div class="loc-item">
+        <div class="dot" id="ekf-dot" style="background:var(--red)"></div>
+        <div><div class="label">EKF</div><div class="value" id="ekf-state">Inactive</div></div>
+      </div>
+      <div class="loc-item">
+        <div class="dot" style="background:var(--accent)"></div>
+        <div><div class="label">ArUco Visible</div><div class="value" id="aruco-count">0</div></div>
+      </div>
+      <div class="loc-pos">
+        <div>X: <span id="pos-x">--</span></div>
+        <div>Y: <span id="pos-y">--</span></div>
+        <div>Yaw: <span id="pos-yaw">--</span></div>
+      </div>
+    </div>
+    <div class="calib-section" id="calib-section">
+      <button class="calib-btn" id="calib-btn">Calibrate Camera</button>
+      <span class="calib-status" id="calib-status"></span>
+    </div>
+  </div>
+
+  <!-- 2D Map -->
+  <div class="panel">
+    <div class="panel-head">2D Map</div>
+    <div class="map-wrap">
+      <canvas id="map-canvas"></canvas>
+    </div>
+  </div>
+
+  <!-- 3D Point Cloud -->
+  <div class="panel">
+    <div class="panel-head">3D Point Cloud</div>
+    <div class="viewer-wrap">
+      <div id="three-container"></div>
+    </div>
+  </div>
 </div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// --- 3D Point Cloud Viewer ---
+const container = document.getElementById('three-container');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0a1a);
+
+const camera3d = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+camera3d.position.set(3, 3, 3);
+camera3d.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+container.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera3d, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.1;
+
+const gridHelper = new THREE.GridHelper(10, 20, 0x334155, 0x1e293b);
+scene.add(gridHelper);
+
+const pointsGeometry = new THREE.BufferGeometry();
+const pointsMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.02, sizeAttenuation: true });
+const pointsMesh = new THREE.Points(pointsGeometry, pointsMaterial);
+scene.add(pointsMesh);
+
+const robotSphere = new THREE.Mesh(
+  new THREE.SphereGeometry(0.08, 16, 16),
+  new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
+);
+scene.add(robotSphere);
+
+function resizeThree() {
+  const w = container.clientWidth;
+  const h = container.clientHeight;
+  if (w === 0 || h === 0) return;
+  renderer.setSize(w, h);
+  camera3d.aspect = w / h;
+  camera3d.updateProjectionMatrix();
+}
+resizeThree();
+new ResizeObserver(resizeThree).observe(container);
+
+function animateThree() {
+  requestAnimationFrame(animateThree);
+  controls.update();
+  renderer.render(scene, camera3d);
+}
+animateThree();
+
+window._updatePointCloud = function(data) {
+  if (!data || !data.points || data.points.length === 0) return;
+  const pts = data.points;
+  const positions = new Float32Array(pts.length * 3);
+  for (let i = 0; i < pts.length; i++) {
+    positions[i * 3] = pts[i][0];
+    positions[i * 3 + 1] = pts[i][2] || 0;
+    positions[i * 3 + 2] = pts[i][1];
+  }
+  pointsGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  pointsGeometry.computeBoundingSphere();
+};
+
+window._updateRobot3D = function(x, y, yawDeg) {
+  robotSphere.position.set(x, 0.08, y);
+};
+</script>
 
 <script>
 (function() {
@@ -245,15 +441,37 @@ header h1 { font-size: 1.1rem; color: var(--accent); }
     };
     ws.onerror = () => ws.close();
     ws.onmessage = (e) => {
-      try { handleStatus(JSON.parse(e.data)); } catch(_) {}
+      try {
+        const data = JSON.parse(e.data);
+        handleStatus(data);
+        handleLocalization(data);
+        handlePointCloud(data);
+        handleCalibration(data);
+      } catch(_) {}
     };
   }
   wsConnect();
+
+  // --- Fullscreen ---
+  document.getElementById('cam-fs-btn').addEventListener('click', () => {
+    const panel = document.getElementById('cam-panel');
+    if (!document.fullscreenElement) {
+      panel.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen();
+    }
+  });
 
   function sendCmd(lx, ly, az) {
     if (ws && ws.readyState === 1) {
       ws.send(JSON.stringify({cmd_vel: {lx, ly, az}}));
       cmdCount++;
+    }
+  }
+
+  function wsSend(obj) {
+    if (ws && ws.readyState === 1) {
+      ws.send(JSON.stringify(obj));
     }
   }
 
@@ -329,6 +547,284 @@ header h1 { font-size: 1.1rem; color: var(--accent); }
     });
   }
 
+  // --- Localization status ---
+  const vslamDot = document.getElementById('vslam-dot');
+  const vslamState = document.getElementById('vslam-state');
+  const ekfDot = document.getElementById('ekf-dot');
+  const ekfState = document.getElementById('ekf-state');
+  const arucoCount = document.getElementById('aruco-count');
+  const posX = document.getElementById('pos-x');
+  const posY = document.getElementById('pos-y');
+  const posYaw = document.getElementById('pos-yaw');
+
+  let robotPos = { x: 0, y: 0, yaw: 0 };
+  let breadcrumbs = [];
+  const MAX_BREADCRUMBS = 100;
+  let arucoDetections = [];
+
+  function handleLocalization(data) {
+    if (!data.localization) return;
+    const loc = data.localization;
+
+    const vslamColors = { initializing: 'var(--yellow)', tracking: 'var(--green)', lost: 'var(--red)' };
+    vslamDot.style.background = vslamColors[loc.vslam_state] || 'var(--muted)';
+    vslamState.textContent = loc.vslam_state || '--';
+
+    ekfDot.style.background = loc.ekf_active ? 'var(--green)' : 'var(--red)';
+    ekfState.textContent = loc.ekf_active ? 'Active' : 'Inactive';
+
+    if (loc.position) {
+      robotPos = { x: loc.position.x, y: loc.position.y, yaw: loc.position.yaw };
+      posX.textContent = robotPos.x.toFixed(2);
+      posY.textContent = robotPos.y.toFixed(2);
+      posYaw.textContent = robotPos.yaw.toFixed(1) + '\u00b0';
+
+      breadcrumbs.push({ x: robotPos.x, y: robotPos.y });
+      if (breadcrumbs.length > MAX_BREADCRUMBS) breadcrumbs.shift();
+
+      if (window._updateRobot3D) {
+        window._updateRobot3D(robotPos.x, robotPos.y, robotPos.yaw);
+      }
+    }
+
+    arucoDetections = loc.aruco_detections || [];
+    arucoCount.textContent = arucoDetections.length;
+
+    drawArucoOverlay();
+    drawMap();
+  }
+
+  // --- Point Cloud ---
+  function handlePointCloud(data) {
+    if (!data.point_cloud) return;
+    if (window._updatePointCloud) {
+      window._updatePointCloud(data.point_cloud);
+    }
+  }
+
+  // --- Calibration ---
+  const calibBtn = document.getElementById('calib-btn');
+  const calibStatus = document.getElementById('calib-status');
+  let calibrating = false;
+  let calibCorners = [];
+
+  calibBtn.addEventListener('click', () => {
+    if (!calibrating) {
+      wsSend({ calibration: 'start' });
+      calibrating = true;
+      calibBtn.textContent = 'Cancel';
+      calibBtn.classList.add('cancel');
+      calibStatus.textContent = 'Starting...';
+      calibStatus.className = 'calib-status';
+    } else {
+      wsSend({ calibration: 'stop' });
+      calibrating = false;
+      calibBtn.textContent = 'Calibrate Camera';
+      calibBtn.classList.remove('cancel');
+      calibStatus.textContent = 'Cancelled';
+      calibCorners = [];
+      drawArucoOverlay();
+    }
+  });
+
+  function handleCalibration(data) {
+    if (!data.calibration) return;
+    const cal = data.calibration;
+
+    if (cal.state === 'detecting') {
+      calibrating = true;
+      calibBtn.textContent = 'Cancel';
+      calibBtn.classList.add('cancel');
+      calibStatus.textContent = cal.frames + '/' + cal.total;
+      calibStatus.className = 'calib-status';
+      calibCorners = cal.found && cal.corners ? cal.corners : [];
+      drawArucoOverlay();
+    } else if (cal.state === 'complete') {
+      calibrating = false;
+      calibBtn.textContent = 'Calibrate Camera';
+      calibBtn.classList.remove('cancel');
+      calibStatus.textContent = 'RMS: ' + cal.rms_error.toFixed(3);
+      calibStatus.className = 'calib-rms';
+      calibCorners = [];
+      drawArucoOverlay();
+    }
+  }
+
+  // --- ArUco overlay ---
+  const camImg = document.getElementById('cam');
+  const overlayCanvas = document.getElementById('aruco-overlay');
+  const overlayCtx = overlayCanvas.getContext('2d');
+
+  function drawArucoOverlay() {
+    const w = camImg.clientWidth;
+    const h = camImg.clientHeight;
+    if (w === 0 || h === 0) return;
+    overlayCanvas.width = w;
+    overlayCanvas.height = h;
+    overlayCtx.clearRect(0, 0, w, h);
+
+    const sx = w / 640;
+    const sy = h / 480;
+
+    // Draw ArUco detections as green quads
+    if (arucoDetections.length > 0) {
+      overlayCtx.strokeStyle = '#22c55e';
+      overlayCtx.lineWidth = 2;
+      overlayCtx.font = '12px monospace';
+      overlayCtx.fillStyle = '#22c55e';
+
+      for (const det of arucoDetections) {
+        if (!det.corners || det.corners.length < 4) continue;
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(det.corners[0][0] * sx, det.corners[0][1] * sy);
+        for (let i = 1; i < det.corners.length; i++) {
+          overlayCtx.lineTo(det.corners[i][0] * sx, det.corners[i][1] * sy);
+        }
+        overlayCtx.closePath();
+        overlayCtx.stroke();
+
+        const cx = det.corners.reduce((s, c) => s + c[0], 0) / det.corners.length * sx;
+        const cy = det.corners.reduce((s, c) => s + c[1], 0) / det.corners.length * sy;
+        overlayCtx.fillText('ID:' + det.id, cx - 10, cy - 8);
+      }
+    }
+
+    // Draw calibration corners in rainbow
+    if (calibrating && calibCorners.length > 0) {
+      const total = calibCorners.length;
+      for (let i = 0; i < total; i++) {
+        const hue = (i / total) * 360;
+        overlayCtx.fillStyle = 'hsl(' + hue + ', 100%, 60%)';
+        const px = calibCorners[i][0] * sx;
+        const py = calibCorners[i][1] * sy;
+        overlayCtx.beginPath();
+        overlayCtx.arc(px, py, 3, 0, Math.PI * 2);
+        overlayCtx.fill();
+      }
+    }
+  }
+
+  // Redraw overlay when image resizes
+  new ResizeObserver(drawArucoOverlay).observe(camImg);
+
+  // --- 2D Map ---
+  const mapCanvas = document.getElementById('map-canvas');
+  const mapCtx = mapCanvas.getContext('2d');
+  let markers = [];
+
+  // Fetch marker positions
+  fetch('/api/markers').then(r => r.json()).then(data => {
+    markers = data || [];
+    drawMap();
+  }).catch(() => {});
+
+  function drawMap() {
+    const dpr = window.devicePixelRatio || 1;
+    const displayW = mapCanvas.clientWidth;
+    const displayH = mapCanvas.clientHeight;
+    if (displayW === 0 || displayH === 0) return;
+    mapCanvas.width = displayW * dpr;
+    mapCanvas.height = displayH * dpr;
+    mapCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    mapCtx.fillStyle = '#0f172a';
+    mapCtx.fillRect(0, 0, displayW, displayH);
+
+    // Compute bounds from markers + robot + breadcrumbs
+    let allPts = markers.map(m => ({ x: m.x || m.position_x || 0, y: m.y || m.position_y || 0 }));
+    allPts.push(robotPos);
+    allPts = allPts.concat(breadcrumbs);
+
+    if (allPts.length === 0) return;
+
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const p of allPts) {
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.y > maxY) maxY = p.y;
+    }
+
+    // Add padding
+    const pad = 0.5;
+    minX -= pad; maxX += pad; minY -= pad; maxY += pad;
+    const rangeX = maxX - minX || 1;
+    const rangeY = maxY - minY || 1;
+
+    // Scale to fit keeping aspect ratio
+    const mapPad = 20;
+    const usableW = displayW - mapPad * 2;
+    const usableH = displayH - mapPad * 2;
+    const scale = Math.min(usableW / rangeX, usableH / rangeY);
+
+    function toScreen(px, py) {
+      const sx = mapPad + (px - minX) * scale + (usableW - rangeX * scale) / 2;
+      const sy = mapPad + (maxY - py) * scale + (usableH - rangeY * scale) / 2;
+      return [sx, sy];
+    }
+
+    // Grid lines
+    mapCtx.strokeStyle = '#1e293b';
+    mapCtx.lineWidth = 0.5;
+    const gridStep = Math.pow(10, Math.floor(Math.log10(rangeX))) || 1;
+    for (let gx = Math.floor(minX / gridStep) * gridStep; gx <= maxX; gx += gridStep) {
+      const [sx] = toScreen(gx, 0);
+      mapCtx.beginPath(); mapCtx.moveTo(sx, mapPad); mapCtx.lineTo(sx, displayH - mapPad); mapCtx.stroke();
+    }
+    for (let gy = Math.floor(minY / gridStep) * gridStep; gy <= maxY; gy += gridStep) {
+      const [, sy] = toScreen(0, gy);
+      mapCtx.beginPath(); mapCtx.moveTo(mapPad, sy); mapCtx.lineTo(displayW - mapPad, sy); mapCtx.stroke();
+    }
+
+    // Draw markers as labeled squares
+    mapCtx.fillStyle = '#eab308';
+    mapCtx.strokeStyle = '#eab308';
+    mapCtx.lineWidth = 1;
+    mapCtx.font = '10px monospace';
+    mapCtx.textAlign = 'center';
+    for (const m of markers) {
+      const mx = m.x !== undefined ? m.x : (m.position_x || 0);
+      const my = m.y !== undefined ? m.y : (m.position_y || 0);
+      const [sx, sy] = toScreen(mx, my);
+      mapCtx.fillRect(sx - 5, sy - 5, 10, 10);
+      mapCtx.fillStyle = '#eab308';
+      const label = m.id !== undefined ? m.id : (m.marker_id !== undefined ? m.marker_id : '');
+      mapCtx.fillText('' + label, sx, sy - 8);
+    }
+
+    // Draw breadcrumbs
+    if (breadcrumbs.length > 1) {
+      mapCtx.strokeStyle = 'rgba(56,189,248,0.3)';
+      mapCtx.lineWidth = 1.5;
+      mapCtx.beginPath();
+      const [bx0, by0] = toScreen(breadcrumbs[0].x, breadcrumbs[0].y);
+      mapCtx.moveTo(bx0, by0);
+      for (let i = 1; i < breadcrumbs.length; i++) {
+        const [bx, by] = toScreen(breadcrumbs[i].x, breadcrumbs[i].y);
+        mapCtx.lineTo(bx, by);
+      }
+      mapCtx.stroke();
+    }
+
+    // Draw robot as directional triangle
+    const [rx, ry] = toScreen(robotPos.x, robotPos.y);
+    const yawRad = -(robotPos.yaw * Math.PI / 180);
+    const triSize = 10;
+    mapCtx.save();
+    mapCtx.translate(rx, ry);
+    mapCtx.rotate(yawRad);
+    mapCtx.fillStyle = '#38bdf8';
+    mapCtx.beginPath();
+    mapCtx.moveTo(triSize, 0);
+    mapCtx.lineTo(-triSize * 0.6, -triSize * 0.6);
+    mapCtx.lineTo(-triSize * 0.6, triSize * 0.6);
+    mapCtx.closePath();
+    mapCtx.fill();
+    mapCtx.restore();
+  }
+
+  new ResizeObserver(drawMap).observe(mapCanvas);
+
   // --- Speed multiplier ---
   const speedSlider = document.getElementById('speed-slider');
   const speedVal = document.getElementById('speed-val');
@@ -368,7 +864,6 @@ header h1 { font-size: 1.1rem; color: var(--accent); }
     const {dx, dy, nx, ny} = joyPos(e);
     knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
     joyX = nx; joyY = ny;
-    // Apply dead zone
     if (Math.abs(joyX) < 0.08) joyX = 0;
     if (Math.abs(joyY) < 0.08) joyY = 0;
   }
@@ -457,7 +952,6 @@ header h1 { font-size: 1.1rem; color: var(--accent); }
   });
 
   // --- Command loop (20Hz) ---
-  // Priority: gamepad > keyboard > touch joystick
   setInterval(() => {
     let lx = joyY, ly = -joyX, az = -rotVal;
     let boost = speedMult;

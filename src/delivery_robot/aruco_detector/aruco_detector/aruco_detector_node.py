@@ -4,7 +4,8 @@ ArUco marker detector node.
 
 Subscribes to camera images and CameraInfo, detects ArUco markers, and for
 markers with known world positions, publishes the robot's pose as
-PoseWithCovarianceStamped for fusion with the EKF.
+PoseWithCovarianceStamped for fusion with the EKF. Also publishes raw
+detection data (marker IDs + pixel corners) for UI overlay.
 """
 
 import numpy as np
@@ -18,6 +19,8 @@ from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import PoseWithCovarianceStamped, TransformStamped
 from cv_bridge import CvBridge
 from tf2_ros import TransformBroadcaster
+
+from delivery_robot_msgs.msg import ArucoDetections
 
 FAST_QOS = QoSProfile(
     reliability=QoSReliabilityPolicy.BEST_EFFORT,
@@ -65,6 +68,10 @@ class ArucoDetectorNode(Node):
 
         self.pose_pub = self.create_publisher(
             PoseWithCovarianceStamped, 'aruco/pose', 10
+        )
+
+        self.detections_pub = self.create_publisher(
+            ArucoDetections, 'aruco/detections', 10
         )
 
         self.create_subscription(
@@ -128,6 +135,8 @@ class ArucoDetectorNode(Node):
         if ids is None or len(ids) == 0:
             return
 
+        self._publish_detections(msg.header.stamp, ids, corners)
+
         for i, marker_id in enumerate(ids.flatten()):
             rvec, tvec, _ = cv2.aruco.estimatePoseSingleMarkers(
                 corners[i:i+1], self.marker_size, self.camera_matrix, self.dist_coeffs
@@ -139,6 +148,24 @@ class ArucoDetectorNode(Node):
 
             if int(marker_id) in self.marker_map:
                 self._publish_robot_pose(msg.header.stamp, marker_id, rvec, tvec)
+
+    def _publish_detections(self, stamp, ids, corners):
+        """Publish raw detection data for the UI overlay."""
+        det_msg = ArucoDetections()
+        det_msg.header.stamp = stamp
+        det_msg.header.frame_id = 'camera_link'
+
+        marker_ids = []
+        flat_corners = []
+        for i, marker_id in enumerate(ids.flatten()):
+            marker_ids.append(int(marker_id))
+            for corner in corners[i][0]:
+                flat_corners.append(float(corner[0]))
+                flat_corners.append(float(corner[1]))
+
+        det_msg.marker_ids = marker_ids
+        det_msg.corners = flat_corners
+        self.detections_pub.publish(det_msg)
 
     def _publish_marker_tf(self, stamp, marker_id, rvec, tvec):
         """Broadcast TF from camera_link to detected marker."""
@@ -163,21 +190,16 @@ class ArucoDetectorNode(Node):
         """Compute robot pose in map frame from a known marker and publish."""
         marker_world_pos = self.marker_map[int(marker_id)]
 
-        # Camera-to-marker transform
         rot_cam_to_marker, _ = cv2.Rodrigues(rvec)
         t_cam_to_marker = tvec.reshape(3, 1)
 
-        # Invert to get marker-to-camera transform
         rot_marker_to_cam = rot_cam_to_marker.T
         t_marker_to_cam = -rot_marker_to_cam @ t_cam_to_marker
 
-        # Robot pose in map frame (assuming marker orientation aligned with map)
-        # For simplicity, markers are assumed to face the Z-axis of the map frame
         robot_x = marker_world_pos[0] + t_marker_to_cam[0, 0]
         robot_y = marker_world_pos[1] + t_marker_to_cam[1, 0]
         robot_z = marker_world_pos[2] + t_marker_to_cam[2, 0]
 
-        # Extract yaw from rotation
         quat = self._rotation_matrix_to_quaternion(rot_marker_to_cam)
 
         msg = PoseWithCovarianceStamped()
@@ -191,8 +213,6 @@ class ArucoDetectorNode(Node):
         msg.pose.pose.orientation.z = quat[2]
         msg.pose.pose.orientation.w = quat[3]
 
-        # Covariance: moderate confidence in position, less in orientation
-        # Diagonal: [x, y, z, roll, pitch, yaw]
         cov = [0.0] * 36
         cov[0] = 0.05   # x variance
         cov[7] = 0.05   # y variance

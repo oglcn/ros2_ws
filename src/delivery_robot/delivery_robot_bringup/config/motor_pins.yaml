@@ -3,7 +3,9 @@ motor_driver:
     gpio_chip: 4
     pwm_frequency: 1000
     max_speed: 1.0
-    min_duty: 0.3
+    min_duty: 0.45
+    max_duty: 1.0
+    slew_rate: 1000.0
     watchdog_timeout: 0.5
     front_left:
       en: 23

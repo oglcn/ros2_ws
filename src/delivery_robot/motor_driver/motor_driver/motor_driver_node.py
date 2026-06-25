@@ -35,12 +35,13 @@ class Motor:
                 lgpio.gpio_free(chip, pin)
                 lgpio.gpio_claim_output(chip, pin)
 
-    def set_speed(self, speed: float, min_duty: float = 0.0):
+    def set_speed(self, speed: float, min_duty: float = 0.0, max_duty: float = 1.0):
         """Set motor speed from -1.0 (full reverse) to 1.0 (full forward).
 
-        If min_duty > 0, any non-zero command is scaled into the
-        [min_duty, 1.0] range so the motor always gets enough voltage
-        to overcome static friction.
+        Non-zero commands are scaled into the [min_duty, max_duty] PWM
+        range: min_duty guarantees enough voltage to overcome static
+        friction, while max_duty caps peak current draw (lower it if the
+        supply browns out under load).
         """
         speed = max(-1.0, min(1.0, speed))
         self.duty = speed
@@ -50,7 +51,7 @@ class Motor:
             lgpio.gpio_write(self.chip, self.in2, 0)
             lgpio.tx_pwm(self.chip, self.en, self.pwm_freq, 0)
         else:
-            pwm = min_duty + abs(speed) * (1.0 - min_duty)
+            pwm = min_duty + abs(speed) * (max_duty - min_duty)
             if speed > 0:
                 lgpio.gpio_write(self.chip, self.in1, 1)
                 lgpio.gpio_write(self.chip, self.in2, 0)
@@ -76,6 +77,8 @@ class MotorDriverNode(Node):
         self.declare_parameter('pwm_frequency', 1000)
         self.declare_parameter('max_speed', 1.0)
         self.declare_parameter('min_duty', 0.3)
+        self.declare_parameter('max_duty', 1.0)
+        self.declare_parameter('slew_rate', 1000.0)  # max duty change per second; large = effectively instant
         self.declare_parameter('watchdog_timeout', 0.5)
 
         self.declare_parameter('front_left.en', 12)
@@ -98,6 +101,8 @@ class MotorDriverNode(Node):
         self.pwm_freq = self.get_parameter('pwm_frequency').value
         self.max_speed = self.get_parameter('max_speed').value
         self.min_duty = self.get_parameter('min_duty').value
+        self.max_duty = self.get_parameter('max_duty').value
+        self.slew_rate = self.get_parameter('slew_rate').value
         self.watchdog_timeout = self.get_parameter('watchdog_timeout').value
 
         try:
@@ -120,7 +125,15 @@ class MotorDriverNode(Node):
         )
         self.status_pub = self.create_publisher(MotorStatus, 'motor_status', 10)
 
+        # Per-wheel target speeds; the ramp timer eases the applied duty
+        # toward these to avoid the inrush current spike that can brown out
+        # the supply when motors start from a standstill.
+        self._targets = {n: 0.0 for n in
+                         ('front_left', 'front_right', 'rear_left', 'rear_right')}
+        self._ramp_dt = 0.02
+
         self._last_cmd_time = self.get_clock().now()
+        self.create_timer(self._ramp_dt, self._ramp_update)
         self.create_timer(0.1, self._watchdog_check)
         self.create_timer(0.2, self._publish_status)
 
@@ -146,17 +159,34 @@ class MotorDriverNode(Node):
         rl /= max_val
         rr /= max_val
 
-        if self.motors:
-            self.motors['front_left'].set_speed(fl, self.min_duty)
-            self.motors['front_right'].set_speed(fr, self.min_duty)
-            self.motors['rear_left'].set_speed(rl, self.min_duty)
-            self.motors['rear_right'].set_speed(rr, self.min_duty)
+        self._targets['front_left'] = fl
+        self._targets['front_right'] = fr
+        self._targets['rear_left'] = rl
+        self._targets['rear_right'] = rr
+
+    def _ramp_update(self):
+        """Move each wheel's applied duty toward its target by at most
+        slew_rate * dt, spreading current draw over a startup ramp."""
+        if not self.motors:
+            return
+        max_step = self.slew_rate * self._ramp_dt
+        for name, m in self.motors.items():
+            target = self._targets[name]
+            current = m.duty
+            delta = target - current
+            if delta > max_step:
+                current += max_step
+            elif delta < -max_step:
+                current -= max_step
+            else:
+                current = target
+            m.set_speed(current, self.min_duty, self.max_duty)
 
     def _watchdog_check(self):
         elapsed = (self.get_clock().now() - self._last_cmd_time).nanoseconds / 1e9
         if elapsed > self.watchdog_timeout:
-            for m in self.motors.values():
-                m.stop()
+            for name in self._targets:
+                self._targets[name] = 0.0
 
     def _publish_status(self):
         msg = MotorStatus()

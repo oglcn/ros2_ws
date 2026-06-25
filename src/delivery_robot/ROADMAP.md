@@ -66,13 +66,13 @@ Build the sensor fusion stack for autonomous positioning.
 - [ ] Test VSLAM tracking with live camera feed
 - [ ] Print and place ArUco markers, measure positions
 - [ ] Tune ORB-SLAM3 parameters based on real-world performance
-- [ ] Add IMU driver when MPU6050 hardware arrives
+- [ ] Add IMU driver when replacement MPU9250 module arrives (current one defective)
 
 **IMU Driver:**
-- MPU6050 via I2C (SDA=GPIO 2, SCL=GPIO 3)
-- Publish `sensor_msgs/Imu` to `/imu/data`
-- Calibration routine for gyro bias and accelerometer offset
-- *Blocked on*: IMU hardware arrival
+- MPU9250 via I2C (SDA=GPIO 2, SCL=GPIO 3)
+- Publish `sensor_msgs/Imu` to `/imu/data` + `sensor_msgs/MagneticField` to `/imu/mag`
+- Calibration routine for gyro bias, accelerometer offset, and magnetometer hard/soft iron
+- *Blocked on*: Replacement IMU module (current module defective)
 
 ## Phase 3: Autonomous Navigation -- FUTURE
 

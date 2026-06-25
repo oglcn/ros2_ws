@@ -8,7 +8,7 @@
 | Camera | Pi Camera Module 3 (IMX708, monocular) |
 | Motor drivers | 2x L298N dual H-bridge boards |
 | Motors | 4x DC motors with mecanum wheels |
-| IMU | MPU6050 (I2C, not yet installed) |
+| IMU | MPU9250 (I2C, pending working module) |
 
 ## GPIO Pinout (Pi 5, gpiochip4 / RP1)
 
@@ -132,7 +132,7 @@ Ctrl+C in the terminal to stop all nodes.
 
 | Component | Interface | Purpose |
 |---|---|---|
-| MPU6050 IMU | I2C (SDA=GPIO 2/Pin 3, SCL=GPIO 3/Pin 5) | Orientation, rotation rate for EKF |
+| MPU9250 IMU | I2C (SDA=GPIO 2/Pin 3, SCL=GPIO 3/Pin 5) | Orientation, rotation rate, compass heading for EKF |
 | ArUco markers | Camera (visual) | Absolute position fixes |
 
 See [ROADMAP.md](ROADMAP.md) for the full development plan.
