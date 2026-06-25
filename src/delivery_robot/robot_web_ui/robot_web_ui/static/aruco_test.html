@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>ArUco Detection Test</title>
+<style>
+:root {
+  --bg: #0f172a; --surface: #1e293b; --border: #334155;
+  --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8;
+  --green: #22c55e; --red: #ef4444;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg); color: var(--text);
+  min-height: 100vh;
+}
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .75rem 1rem; background: var(--surface); border-bottom: 1px solid var(--border);
+}
+header h1 { font-size: 1.1rem; color: var(--accent); }
+.conn { display:flex; align-items:center; gap:.4rem; font-size:.8rem; }
+.conn .dot { width:8px; height:8px; border-radius:50%; background:var(--red); }
+.conn.ok .dot { background: var(--green); }
+
+.wrap { max-width: 900px; margin: 0 auto; padding: .75rem; display: flex; flex-direction: column; gap: .75rem; }
+
+.panel { background: var(--surface); border-radius: 10px; border: 1px solid var(--border); overflow: hidden; }
+.panel-head {
+  padding: .5rem .75rem; font-size: .75rem; font-weight: 600;
+  color: var(--muted); text-transform: uppercase; letter-spacing: .05em;
+  border-bottom: 1px solid var(--border);
+}
+
+.cam-wrap { position: relative; display: block; }
+.cam-wrap img { display:block; width:100%; height:auto; background:#000; }
+#overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+
+.target-row { display: flex; align-items: center; gap: .75rem; padding: .75rem; flex-wrap: wrap; }
+.target-row label { font-size: .85rem; color: var(--muted); }
+#target-id {
+  width: 90px; padding: .4rem .5rem; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); font-size: 1rem; font-family: monospace;
+}
+
+.status-banner {
+  margin: 0 .75rem .75rem; padding: .75rem; border-radius: 8px;
+  font-weight: 600; font-size: .95rem; text-align: center;
+  background: var(--bg); border: 1px solid var(--border); color: var(--muted);
+  transition: background .2s, color .2s, border-color .2s;
+}
+.status-banner.found {
+  background: rgba(34,197,94,.15); border-color: var(--green); color: var(--green);
+}
+.status-banner.searching {
+  background: rgba(239,68,68,.1); border-color: var(--red); color: var(--red);
+}
+
+.det-list { padding: .75rem; display: flex; flex-wrap: wrap; gap: .4rem; }
+.det-chip {
+  font-family: monospace; font-size: .8rem; padding: .25rem .5rem;
+  border-radius: 6px; background: var(--bg); border: 1px solid var(--border); color: var(--muted);
+}
+.det-chip.target { background: var(--green); color: #0f172a; border-color: var(--green); font-weight: 700; }
+.det-empty { font-size: .8rem; color: var(--muted); }
+
+.approach-row { display:flex; gap:.5rem; padding:.75rem; }
+.approach-btn {
+  flex:1; padding:.6rem; border-radius:8px; border:1px solid var(--border);
+  background:var(--bg); color:var(--muted); font-size:.9rem; font-weight:700; cursor:pointer;
+}
+.approach-btn.start.active { background:var(--green); color:#0f172a; border-color:var(--green); }
+.approach-btn.stop.active { background:var(--red); color:#0f172a; border-color:var(--red); }
+
+.distance-row {
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 0 .75rem .5rem; font-family: monospace;
+}
+.distance-label { color: var(--muted); font-size: .8rem; }
+.distance-value { font-size: 1.2rem; font-weight: 700; }
+.distance-value.far { color: var(--green); }
+.distance-value.close { color: var(--red); }
+.distance-value.unknown { color: var(--muted); }
+
+.approach-state { padding: 0 .75rem .75rem; font-size: .8rem; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>ArUco Detection Test</h1>
+  <div class="conn" id="conn">
+    <div class="dot"></div>
+    <span>Disconnected</span>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="panel">
+    <div class="panel-head">Camera Feed</div>
+    <div class="cam-wrap">
+      <img id="cam" src="/stream" alt="Camera">
+      <canvas id="overlay"></canvas>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">Target Marker</div>
+    <div class="target-row">
+      <label for="target-id">Marker ID</label>
+      <input type="number" id="target-id" min="0" step="1" value="0">
+    </div>
+    <div class="status-banner" id="status-banner">Enter a marker ID</div>
+    <div class="det-list" id="det-list">
+      <span class="det-empty">No markers detected</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">Approach Control</div>
+    <div class="approach-row">
+      <button class="approach-btn start" id="btn-start">Start</button>
+      <button class="approach-btn stop active" id="btn-stop">Stop</button>
+    </div>
+    <div class="distance-row">
+      <span class="distance-label">Distance (size ratio, &lt;1.0 = will drive)</span>
+      <span class="distance-value unknown" id="distance-value">--</span>
+    </div>
+    <div class="approach-state" id="approach-state">Stopped</div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  const connEl = document.getElementById('conn');
+  const targetInput = document.getElementById('target-id');
+  const banner = document.getElementById('status-banner');
+  const detList = document.getElementById('det-list');
+  const camImg = document.getElementById('cam');
+  const overlay = document.getElementById('overlay');
+  const ctx = overlay.getContext('2d');
+
+  let detections = [];
+
+  function targetId() {
+    const v = parseInt(targetInput.value, 10);
+    return Number.isNaN(v) ? null : v;
+  }
+
+  function update() {
+    const tid = targetId();
+    const found = tid !== null && detections.some(d => d.id === tid);
+
+    if (tid === null) {
+      banner.className = 'status-banner';
+      banner.textContent = 'Enter a marker ID';
+    } else if (found) {
+      banner.className = 'status-banner found';
+      banner.textContent = `Marker ${tid} detected`;
+    } else {
+      banner.className = 'status-banner searching';
+      banner.textContent = `Searching for marker ${tid}...`;
+    }
+
+    if (detections.length === 0) {
+      detList.innerHTML = '<span class="det-empty">No markers detected</span>';
+    } else {
+      detList.innerHTML = detections.map(d =>
+        `<span class="det-chip${d.id === tid ? ' target' : ''}">ID ${d.id}</span>`
+      ).join('');
+    }
+
+    drawOverlay();
+  }
+
+  function drawOverlay() {
+    const w = camImg.clientWidth;
+    const h = camImg.clientHeight;
+    if (w === 0 || h === 0) return;
+    overlay.width = w;
+    overlay.height = h;
+    ctx.clearRect(0, 0, w, h);
+
+    const sx = w / 640;
+    const sy = h / 480;
+    const tid = targetId();
+
+    ctx.font = '14px monospace';
+
+    for (const det of detections) {
+      if (!det.corners || det.corners.length < 4) continue;
+      const isTarget = det.id === tid;
+      ctx.strokeStyle = isTarget ? '#22c55e' : '#94a3b8';
+      ctx.lineWidth = isTarget ? 3 : 1.5;
+      ctx.fillStyle = ctx.strokeStyle;
+
+      ctx.beginPath();
+      ctx.moveTo(det.corners[0][0] * sx, det.corners[0][1] * sy);
+      for (let i = 1; i < det.corners.length; i++) {
+        ctx.lineTo(det.corners[i][0] * sx, det.corners[i][1] * sy);
+      }
+      ctx.closePath();
+      ctx.stroke();
+
+      const cx = det.corners.reduce((s, c) => s + c[0], 0) / det.corners.length * sx;
+      const cy = det.corners.reduce((s, c) => s + c[1], 0) / det.corners.length * sy;
+      ctx.fillText('ID:' + det.id, cx - 14, cy - 10);
+    }
+  }
+
+  new ResizeObserver(drawOverlay).observe(camImg);
+  targetInput.addEventListener('input', update);
+
+  // --- Approach Start/Stop ---
+  const btnStart = document.getElementById('btn-start');
+  const btnStop = document.getElementById('btn-stop');
+  const distanceValue = document.getElementById('distance-value');
+  const approachStateEl = document.getElementById('approach-state');
+  let armed = false;
+
+  function updateApproachButtons() {
+    btnStart.classList.toggle('active', armed);
+    btnStop.classList.toggle('active', !armed);
+  }
+
+  function setArmed(value) {
+    armed = value;
+    updateApproachButtons();
+    if (ws && ws.readyState === 1) {
+      ws.send(JSON.stringify({ armed: value }));
+    }
+  }
+
+  btnStart.addEventListener('click', () => setArmed(true));
+  btnStop.addEventListener('click', () => setArmed(false));
+
+  function handleApproach(data) {
+    if (!data.approach) return;
+    const a = data.approach;
+    armed = a.armed;
+    updateApproachButtons();
+
+    if (!a.visible) {
+      distanceValue.textContent = '--';
+      distanceValue.className = 'distance-value unknown';
+    } else {
+      distanceValue.textContent = a.size_norm.toFixed(2) + 'x';
+      distanceValue.className = 'distance-value ' + (a.size_norm >= 1.0 ? 'close' : 'far');
+    }
+
+    approachStateEl.textContent = 'State: ' + a.state + (a.visible ? '' : ' (marker not visible)');
+  }
+
+  let ws = null;
+  function wsConnect() {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${proto}://${location.host}/ws`);
+    ws.onopen = () => {
+      connEl.className = 'conn ok';
+      connEl.querySelector('span').textContent = 'Connected';
+    };
+    ws.onclose = () => {
+      connEl.className = 'conn';
+      connEl.querySelector('span').textContent = 'Disconnected';
+      setTimeout(wsConnect, 2000);
+    };
+    ws.onerror = () => ws.close();
+    ws.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.detections) {
+          detections = data.detections;
+          update();
+        }
+        if (data.approach) {
+          handleApproach(data);
+        }
+      } catch(_) {}
+    };
+  }
+  wsConnect();
+  update();
+})();
+</script>
+</body>
+</html>

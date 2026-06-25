@@ -23,6 +23,7 @@ setup(
     entry_points={
         'console_scripts': [
             'web_ui_node = robot_web_ui.web_ui_node:main',
+            'aruco_test_node = robot_web_ui.aruco_test_node:main',
         ],
     },
 )
