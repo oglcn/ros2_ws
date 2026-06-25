@@ -8,8 +8,11 @@
   <license>MIT</license>
 
   <depend>rclpy</depend>
+  <depend>std_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>cv_bridge</depend>
   <depend>delivery_robot_msgs</depend>
 
   <export>

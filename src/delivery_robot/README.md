@@ -10,7 +10,7 @@ Indoor autonomous delivery robot built on a Raspberry Pi 5 with ROS2 Jazzy. Uses
 | Camera | Pi Camera Module 3 (IMX708, monocular) |
 | Motor drivers | 2x L298N dual H-bridge boards |
 | Drive | 4x DC motors with mecanum wheels |
-| IMU | MPU6050 via I2C (not yet installed) |
+| IMU | MPU9250 via I2C (pending working module) |
 
 See [HARDWARE.md](HARDWARE.md) for full GPIO pinout, wiring diagrams, and power connections.
 
@@ -20,15 +20,15 @@ See [HARDWARE.md](HARDWARE.md) for full GPIO pinout, wiring diagrams, and power 
 graph LR
   subgraph sensors [Sensors]
     Cam["Pi Camera Module 3"]
-    IMU["MPU6050 IMU"]
+    IMU["MPU9250 IMU"]
   end
 
-  subgraph perception [Perception -- Phase 2]
-    VSLAM["VSLAM Node"]
+  subgraph perception [Perception]
+    VSLAM["ORB-SLAM3 Node"]
     Aruco["ArUco Detector"]
   end
 
-  subgraph localization [Localization -- Phase 2]
+  subgraph localization [Localization]
     EKF["robot_localization EKF"]
   end
 
@@ -36,7 +36,7 @@ graph LR
     Nav2["Nav2 Stack"]
   end
 
-  subgraph control [Control -- Phase 1]
+  subgraph control [Control]
     WebUI["Web UI Node"]
     MotorDrv["Motor Driver Node"]
   end
@@ -46,14 +46,17 @@ graph LR
     Wheels["4x Mecanum"]
   end
 
-  Cam --> VSLAM -->|"/odom"| EKF
-  Cam --> Aruco -->|"/aruco/markers"| EKF
+  Cam --> VSLAM -->|"/visual_odom"| EKF
+  Cam --> Aruco -->|"/aruco/pose"| EKF
   IMU -->|"/imu/data"| EKF
   EKF -->|"/odometry/filtered"| Nav2
+  EKF -->|"/odometry/filtered"| WebUI
   Nav2 -->|"/cmd_vel"| MotorDrv
   WebUI -->|"/cmd_vel"| MotorDrv
   MotorDrv --> L298N --> Wheels
   Cam --> WebUI
+  VSLAM -->|"/vslam/map_points"| WebUI
+  Aruco -->|"/aruco/detections"| WebUI
 ```
 
 ## Package Layout
@@ -65,25 +68,41 @@ ros2_ws/src/delivery_robot/
   pi_camera_driver/          # rpicam-vid camera node (ament_python)
   motor_driver/              # L298N + mecanum kinematics (ament_python)
   robot_web_ui/              # web dashboard + WebSocket bridge (ament_python)
-  aruco_detector/            # ArUco detection (Phase 2 stub)
+  aruco_detector/            # ArUco marker detection + localization (ament_python)
+  orb_slam3_ros/             # ORB-SLAM3 monocular wrapper (ament_cmake)
 ```
 
 | Package | Main source | Description |
 |---|---|---|
 | `pi_camera_driver` | `pi_camera_driver/camera_node.py` | Launches `rpicam-vid` in a clean env, publishes JPEG and raw Image topics |
 | `motor_driver` | `motor_driver/motor_driver_node.py` | Subscribes to `/cmd_vel`, mecanum inverse kinematics, L298N PWM via `lgpio` |
-| `robot_web_ui` | `robot_web_ui/web_ui_node.py` | aiohttp server on port 8080: MJPEG stream, WebSocket bridge, static frontend |
-| `delivery_robot_msgs` | `msg/MotorStatus.msg` | `float32[4] duty_cycles`, `bool[4] active`, `string mode` |
-| `delivery_robot_bringup` | `launch/bringup.launch.py` | Launches all Phase 1 nodes with YAML config |
+| `robot_web_ui` | `robot_web_ui/web_ui_node.py` | aiohttp server on port 8080: MJPEG stream, WebSocket bridge, localization UI, calibration |
+| `delivery_robot_msgs` | `msg/MotorStatus.msg`, `msg/ArucoDetections.msg` | Motor status + ArUco detection messages |
+| `delivery_robot_bringup` | `launch/bringup.launch.py` | Launches all base nodes with YAML config |
+| `aruco_detector` | `aruco_detector/aruco_detector_node.py` | Detects ArUco markers, publishes pose + pixel detections for EKF and UI |
+| `orb_slam3_ros` | `src/orb_slam3_node.cpp` | ORB-SLAM3 monocular VSLAM, publishes odometry + point cloud |
 
-## ROS2 Topics (Phase 1)
+## ROS2 Topics
+
+### Base System (Phase 1)
 
 | Topic | Type | Publisher | Subscriber |
 |---|---|---|---|
-| `/camera/image_raw` | `sensor_msgs/Image` | pi_camera_driver | (Phase 2) |
+| `/camera/image_raw` | `sensor_msgs/Image` | pi_camera_driver | orb_slam3, aruco_detector |
 | `/camera/image_raw/compressed` | `sensor_msgs/CompressedImage` | pi_camera_driver | robot_web_ui |
+| `/camera/camera_info` | `sensor_msgs/CameraInfo` | pi_camera_driver | aruco_detector |
 | `/cmd_vel` | `geometry_msgs/Twist` | robot_web_ui | motor_driver |
 | `/motor_status` | `MotorStatus` | motor_driver | robot_web_ui |
+
+### Localization Stack (Phase 2)
+
+| Topic | Type | Publisher | Subscriber |
+|---|---|---|---|
+| `/visual_odom` | `nav_msgs/Odometry` | orb_slam3_ros | EKF, robot_web_ui |
+| `/vslam/map_points` | `sensor_msgs/PointCloud2` | orb_slam3_ros | robot_web_ui |
+| `/aruco/pose` | `PoseWithCovarianceStamped` | aruco_detector | EKF |
+| `/aruco/detections` | `ArucoDetections` | aruco_detector | robot_web_ui |
+| `/odometry/filtered` | `nav_msgs/Odometry` | EKF | robot_web_ui, (Nav2) |
 
 ## Build
 
@@ -103,14 +122,22 @@ colcon build --packages-select <package_name>
 ## Run
 
 ```bash
-~/start_robot.sh
-```
+# Base system (camera, motors, web UI)
+cd ~/ros2_ws && ./start_robot.sh
 
-This kills stale processes, then launches all nodes via `ros2 launch`. Ctrl+C to stop.
+# Localization stack (in a separate terminal)
+source /opt/ros/jazzy/setup.bash && source ~/ros2_ws/install/setup.bash
+ros2 launch delivery_robot_bringup localization.launch.py
+
+# Localization without ArUco (VSLAM only)
+ros2 launch delivery_robot_bringup localization.launch.py use_aruco:=false
+```
 
 Open `http://<pi-ip>:8080` on your phone or laptop.
 
-## Web UI Controls
+## Web UI
+
+### Controls
 
 | Input | Action |
 |---|---|
@@ -123,6 +150,20 @@ Open `http://<pi-ip>:8080` on your phone or laptop.
 | **Gamepad right stick** | Rotation |
 | **Gamepad RT** | Boost |
 
+### Localization Dashboard
+
+The web UI includes five localization panels (visible at `http://<pi-ip>:8080`):
+
+| Panel | What it shows |
+|---|---|
+| **Localization Status** | VSLAM state (initializing/tracking/lost), EKF active indicator, robot position (x, y, yaw), number of visible ArUco markers |
+| **2D Map** | Top-down canvas with marker positions, robot location as a directional triangle, and a breadcrumb trail |
+| **3D Point Cloud** | Interactive three.js viewer showing the sparse VSLAM map (rotate/zoom/pan) |
+| **ArUco Overlay** | Green quadrilaterals drawn over detected markers on the camera feed |
+| **Camera Calibration** | Built-in checkerboard calibration with live corner detection, frame counter, and RMS error report |
+
+The camera feed also has a fullscreen button (top-right corner).
+
 ## Configuration
 
 All config lives in `delivery_robot_bringup/config/`:
@@ -130,7 +171,11 @@ All config lives in `delivery_robot_bringup/config/`:
 | File | Contents |
 |---|---|
 | `motor_pins.yaml` | GPIO pin map, PWM frequency, `min_duty`, `max_speed`, watchdog timeout |
-| `camera.yaml` | Resolution, framerate, JPEG quality, `publish_raw` toggle |
+| `camera.yaml` | Resolution, framerate, JPEG quality, `publish_raw` toggle, calibration file path |
+| `camera_calibration.yaml` | Camera intrinsics (K, D, R, P matrices) |
+| `aruco_markers.yaml` | Marker size, dictionary, known marker world positions |
+| `ekf.yaml` | robot_localization EKF config: sensor sources, covariances |
+| `orb_slam3_pi5.yaml` | ORB-SLAM3 camera params, feature count, scale levels |
 
 Edit and rebuild `delivery_robot_bringup` to apply changes.
 
@@ -141,8 +186,11 @@ Edit and rebuild `delivery_robot_bringup` to apply changes.
 - **GPIO permissions**: The user must be in the `dialout` group. The launch script uses `sg dialout`.
 - **ROS2 fixed-size arrays**: `float32[4]` and `bool[4]` fields must be assigned element-by-element in Python, not via list assignment.
 - **JSON serialization**: ROS2 `float32`/`bool` types are numpy types. Convert with `float()`/`bool()` before passing to `json.dumps`.
+- **OpenCV 4.6 ArUco API**: System OpenCV uses the older `cv2.aruco.detectMarkers()` function. Do NOT use the newer `ArucoDetector` class (4.7+).
+- **ORB-SLAM3 memory**: Loads ~140MB vocabulary. 4GB swap is configured. Reduce `nFeatures` in config if OOM occurs.
 
 ## Further Reading
 
 - [HARDWARE.md](HARDWARE.md) -- GPIO pinout, wiring, mecanum kinematics
 - [ROADMAP.md](ROADMAP.md) -- phased development plan and open decisions
+- [LOCALIZATION.md](LOCALIZATION.md) -- localization system user guide and developer reference

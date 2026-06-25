@@ -2,16 +2,21 @@
  * ROS2 wrapper for ORB-SLAM3 monocular mode.
  *
  * Subscribes to camera images, runs ORB-SLAM3 tracking, and publishes
- * visual odometry (nav_msgs/Odometry) and TF (odom -> base_link).
+ * visual odometry (nav_msgs/Odometry), TF (odom -> base_link), and
+ * the sparse map point cloud (sensor_msgs/PointCloud2).
  */
 
 #include <chrono>
 #include <memory>
 #include <string>
+#include <vector>
+#include <algorithm>
 
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <sensor_msgs/point_cloud2_iterator.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <cv_bridge/cv_bridge.hpp>
@@ -24,6 +29,9 @@
 #include <Eigen/Geometry>
 
 #include "System.h"
+#include "MapPoint.h"
+
+static constexpr size_t MAX_POINTCLOUD_POINTS = 3000;
 
 class OrbSlam3Node : public rclcpp::Node {
 public:
@@ -62,10 +70,17 @@ public:
         odom_pub_ = create_publisher<nav_msgs::msg::Odometry>(
             "visual_odom", 10);
 
+        pointcloud_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>(
+            "vslam/map_points", 10);
+
         auto qos = rclcpp::QoS(1).best_effort();
         image_sub_ = create_subscription<sensor_msgs::msg::Image>(
             "camera/image_raw", qos,
             std::bind(&OrbSlam3Node::image_callback, this, std::placeholders::_1));
+
+        pointcloud_timer_ = create_wall_timer(
+            std::chrono::seconds(5),
+            std::bind(&OrbSlam3Node::publish_map_points, this));
 
         RCLCPP_INFO(get_logger(), "ORB-SLAM3 node ready, waiting for images...");
     }
@@ -129,7 +144,6 @@ private:
         msg.pose.pose.orientation.z = orientation.z();
         msg.pose.pose.orientation.w = orientation.w();
 
-        // Covariance: low values indicating high confidence when tracking
         msg.pose.covariance[0] = 0.01;   // x
         msg.pose.covariance[7] = 0.01;   // y
         msg.pose.covariance[14] = 0.01;  // z
@@ -159,11 +173,75 @@ private:
         tf_broadcaster_->sendTransform(tf_msg);
     }
 
+    void publish_map_points() {
+        if (slam_system_->GetTrackingState() != 2) {
+            return;
+        }
+
+        std::vector<ORB_SLAM3::MapPoint*> tracked = slam_system_->GetTrackedMapPoints();
+        if (tracked.empty()) {
+            return;
+        }
+
+        // Accumulate tracked points into persistent buffer
+        for (auto* mp : tracked) {
+            if (!mp || mp->isBad()) continue;
+            Eigen::Vector3f pos = mp->GetWorldPos();
+            accumulated_points_.push_back(pos);
+        }
+
+        // Cap accumulated buffer
+        if (accumulated_points_.size() > MAX_POINTCLOUD_POINTS * 2) {
+            size_t step = accumulated_points_.size() / MAX_POINTCLOUD_POINTS;
+            std::vector<Eigen::Vector3f> sampled;
+            sampled.reserve(MAX_POINTCLOUD_POINTS);
+            for (size_t i = 0; i < accumulated_points_.size() && sampled.size() < MAX_POINTCLOUD_POINTS; i += step) {
+                sampled.push_back(accumulated_points_[i]);
+            }
+            accumulated_points_ = std::move(sampled);
+        }
+
+        std::vector<Eigen::Vector3f>& valid_points = accumulated_points_;
+        if (valid_points.empty()) {
+            return;
+        }
+
+        // Build PointCloud2 message
+        sensor_msgs::msg::PointCloud2 cloud_msg;
+        cloud_msg.header.stamp = now();
+        cloud_msg.header.frame_id = odom_frame_;
+        cloud_msg.height = 1;
+        cloud_msg.width = valid_points.size();
+        cloud_msg.is_dense = true;
+        cloud_msg.is_bigendian = false;
+
+        sensor_msgs::PointCloud2Modifier modifier(cloud_msg);
+        modifier.setPointCloud2FieldsByString(1, "xyz");
+        modifier.resize(valid_points.size());
+
+        sensor_msgs::PointCloud2Iterator<float> iter_x(cloud_msg, "x");
+        sensor_msgs::PointCloud2Iterator<float> iter_y(cloud_msg, "y");
+        sensor_msgs::PointCloud2Iterator<float> iter_z(cloud_msg, "z");
+
+        for (const auto& pt : valid_points) {
+            *iter_x = pt.x();
+            *iter_y = pt.y();
+            *iter_z = pt.z();
+            ++iter_x; ++iter_y; ++iter_z;
+        }
+
+        pointcloud_pub_->publish(cloud_msg);
+    }
+
     std::unique_ptr<ORB_SLAM3::System> slam_system_;
     std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_pub_;
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_sub_;
+    rclcpp::TimerBase::SharedPtr pointcloud_timer_;
+
+    std::vector<Eigen::Vector3f> accumulated_points_;
 
     std::string vocab_file_;
     std::string settings_file_;
