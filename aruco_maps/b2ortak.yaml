@@ -1,0 +1,50 @@
+name: b2ortak
+marker_size: 0.17
+dictionary: DICT_4X4_50
+anchors:
+- 1
+- 2
+markers:
+  1:
+    x: 0
+    y: 0
+    z: 0.285
+  2:
+    x: -0.52
+    y: 0
+    z: 0.285
+  3:
+    x: -1.3086
+    y: -0.1442
+    z: 0.385
+  10:
+    x: -2.3184
+    y: -0.2046
+    z: 0.385
+  9:
+    x: -3.0898
+    y: -0.2885
+    z: 0.385
+  8:
+    x: -4.0643
+    y: -0.4969
+    z: 0.385
+  11:
+    x: -5.6082
+    y: -0.723
+    z: 0.385
+  4:
+    x: -7.0143
+    y: 0.0112
+    z: 0.385
+locations:
+  masa1:
+    name: masa1
+    x: -6.19
+    y: 0.03
+    is_home: false
+  home:
+    name: Ev
+    x: -0.76
+    y: 1.09
+    is_home: true

@@ -142,14 +142,126 @@ header h1 { font-size: 1.1rem; color: var(--accent); }
 .motor-val { font-size:.7rem; font-family:monospace; margin-top:3px; }
 .motor-dir { font-size:.6rem; color:var(--muted); }
 
-/* Mode */
-.mode-row { display:flex; gap:.5rem; padding:.75rem; }
-.mode-btn {
-  flex:1; padding:.5rem; border-radius:8px; border:1px solid var(--border);
-  background:var(--bg); color:var(--muted); font-size:.8rem; cursor:pointer;
+/* Direction indicator */
+.direction-indicator {
+  display:flex; flex-direction:column; align-items:center;
+  padding:.5rem .75rem .75rem; gap:.3rem;
+  border-top:1px solid var(--border);
 }
-.mode-btn.active { background:var(--accent); color:#0f172a; border-color:var(--accent); font-weight:600; }
-.mode-btn:disabled { opacity:.4; cursor:not-allowed; }
+.dir-arrows {
+  display:flex; align-items:center; justify-content:center; gap:.6rem;
+  height:3rem;
+}
+.dir-arrow {
+  width:2.4rem; height:2.4rem; transition: transform .15s, opacity .15s;
+  opacity:0.2;
+}
+.dir-arrow svg { width:100%; height:100%; fill:var(--accent); }
+.dir-rotation {
+  font-size:1.1rem; opacity:0.2; transition: opacity .15s;
+  color:var(--yellow); font-weight:bold; line-height:1;
+}
+.dir-label {
+  font-size:.65rem; color:var(--muted); font-family:monospace;
+  text-transform:uppercase; letter-spacing:.03em;
+}
+
+/* Control tabs */
+.tab-bar {
+  display: flex; border-bottom: 1px solid var(--border);
+}
+.tab-btn {
+  flex: 1; padding: .55rem .5rem; border: none; background: none;
+  color: var(--muted); font-size: .75rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .05em; cursor: pointer;
+  border-bottom: 2px solid transparent; transition: color .15s, border-color .15s;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* Approach panel */
+.approach-target { display:flex; align-items:center; gap:.75rem; padding:.75rem; }
+.approach-target label { font-size:.85rem; color:var(--muted); }
+.approach-target input {
+  width:80px; padding:.4rem .5rem; border-radius:6px; border:1px solid var(--border);
+  background:var(--bg); color:var(--text); font-size:1rem; font-family:monospace;
+}
+.approach-btns { display:flex; gap:.5rem; padding:0 .75rem .75rem; }
+.approach-btn {
+  flex:1; padding:.6rem; border-radius:8px; border:1px solid var(--border);
+  background:var(--bg); color:var(--muted); font-size:.9rem; font-weight:700; cursor:pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.approach-btn.start.on { background:var(--green); color:#0f172a; border-color:var(--green); }
+.approach-btn.stop.on { background:var(--red); color:#0f172a; border-color:var(--red); }
+.approach-state-banner {
+  margin:0 .75rem .5rem; padding:.6rem; border-radius:8px; text-align:center;
+  font-weight:600; font-size:.85rem;
+  background:var(--bg); border:1px solid var(--border); color:var(--muted);
+  transition: background .2s, color .2s, border-color .2s;
+}
+.approach-state-banner.st-SEARCHING { background:rgba(234,179,8,.12); border-color:var(--yellow); color:var(--yellow); }
+.approach-state-banner.st-TRACKING  { background:rgba(56,189,248,.12); border-color:var(--accent); color:var(--accent); }
+.approach-state-banner.st-ARRIVED   { background:rgba(34,197,94,.15); border-color:var(--green); color:var(--green); }
+.approach-state-banner.st-FAILED    { background:rgba(239,68,68,.12); border-color:var(--red); color:var(--red); }
+.approach-distance {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 .75rem .75rem; font-family:monospace;
+}
+.approach-distance .label { color:var(--muted); font-size:.8rem; }
+.approach-distance .value { font-size:1.1rem; font-weight:700; color:var(--text); }
+/* Auto / delivery tab */
+.auto-controls {
+  display:flex; flex-wrap:wrap; align-items:center; gap:.5rem;
+  padding:.6rem .75rem; border-bottom:1px solid var(--border);
+}
+.auto-controls label { font-size:.8rem; color:var(--muted); white-space:nowrap; }
+.auto-controls select {
+  flex:1; min-width:100px; padding:.35rem .5rem; border-radius:6px;
+  border:1px solid var(--border); background:var(--bg); color:var(--text);
+  font-size:.85rem;
+}
+.auto-btns { display:flex; gap:.4rem; }
+.auto-btn {
+  padding:.45rem .8rem; border-radius:6px; border:1px solid var(--border);
+  background:var(--bg); color:var(--muted); font-size:.8rem; font-weight:600;
+  cursor:pointer; transition: background .15s, color .15s, border-color .15s;
+}
+.auto-btn:disabled { opacity:.35; cursor:default; }
+.auto-btn.start { border-color:var(--green); color:var(--green); }
+.auto-btn.start:hover:not(:disabled) { background:var(--green); color:#0f172a; }
+.auto-btn.pause { border-color:var(--yellow); color:var(--yellow); }
+.auto-btn.pause:hover:not(:disabled) { background:var(--yellow); color:#0f172a; }
+.auto-btn.cancel { border-color:var(--red); color:var(--red); }
+.auto-btn.cancel:hover:not(:disabled) { background:var(--red); color:#0f172a; }
+.auto-btn.clear { border-color:var(--muted); color:var(--muted); }
+.auto-btn.clear:hover:not(:disabled) { background:var(--muted); color:#0f172a; }
+.auto-state-banner {
+  margin:.5rem .75rem 0; padding:.5rem; border-radius:8px; text-align:center;
+  font-weight:600; font-size:.85rem;
+  background:var(--bg); border:1px solid var(--border); color:var(--muted);
+  transition: background .2s, color .2s, border-color .2s;
+}
+.auto-state-banner.st-NAVIGATING  { background:rgba(56,189,248,.12); border-color:var(--accent); color:var(--accent); }
+.auto-state-banner.st-APPROACHING { background:rgba(234,179,8,.12); border-color:var(--yellow); color:var(--yellow); }
+.auto-state-banner.st-PAUSED      { background:rgba(234,179,8,.12); border-color:var(--yellow); color:var(--yellow); }
+.auto-state-banner.st-ARRIVED     { background:rgba(34,197,94,.15); border-color:var(--green); color:var(--green); }
+.auto-state-banner.st-FAILED      { background:rgba(239,68,68,.12); border-color:var(--red); color:var(--red); }
+.auto-map-wrap {
+  position:relative; width:100%; padding-top:75%; background:var(--bg);
+}
+.auto-map-wrap canvas {
+  position:absolute; top:0; left:0; width:100%; height:100%; cursor:crosshair;
+}
+.auto-status-bar {
+  display:flex; justify-content:space-around; padding:.45rem .75rem;
+  border-top:1px solid var(--border); font-family:monospace; font-size:.75rem;
+}
+.auto-status-bar .auto-stat { text-align:center; }
+.auto-status-bar .auto-stat .label { color:var(--muted); font-size:.65rem; text-transform:uppercase; }
+.auto-status-bar .auto-stat .value { font-size:.9rem; font-weight:700; }
 
 /* Stats overlay */
 .stats-bar {
@@ -181,13 +293,60 @@ header h1 { font-size: 1.1rem; color: var(--accent); }
 }
 .loc-item .label { color: var(--muted); font-size: .7rem; }
 .loc-item .value { font-family: monospace; font-size: .8rem; }
+details.loc-item summary span { display:inline-block; transition:transform .15s; }
+details.loc-item[open] summary span { transform:rotate(90deg); }
 .loc-pos {
   grid-column: 1 / -1; display: flex; gap: 1rem; padding-top: .25rem;
   font-family: monospace; font-size: .8rem;
 }
 .loc-pos span { color: var(--muted); }
-.calib-section {
+.loc-actions {
   padding: .75rem; border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+}
+.loc-toggle {
+  padding: .4rem .75rem; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); font-size: .75rem; cursor: pointer;
+  transition: border-color .2s, background .2s, color .2s;
+}
+.loc-toggle:hover { border-color: var(--accent); }
+.loc-toggle.running { border-color: var(--green); background: rgba(34,197,94,0.1); color: var(--green); }
+.loc-toggle.running:hover { border-color: var(--red); background: rgba(239,68,68,0.1); color: var(--red); }
+.loc-toggle-status { font-size: .75rem; color: var(--muted); }
+.map-selector {
+  padding: .5rem .75rem; border-top: 1px solid var(--border);
+  display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+}
+.map-selector select {
+  padding: .3rem .5rem; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); font-size: .75rem; flex: 1; min-width: 100px;
+}
+.map-selector .map-btn {
+  padding: .3rem .5rem; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); font-size: .7rem; cursor: pointer;
+}
+.map-selector .map-btn:hover { border-color: var(--accent); }
+.map-selector .map-btn.delete { color: var(--red); border-color: var(--red); }
+.map-selector .map-badge { font-size: .65rem; color: var(--muted); }
+.marker-list {
+  padding: .25rem .75rem .5rem; border-top: 1px solid var(--border);
+  max-height: 9rem; overflow-y: auto; font-size: .7rem;
+}
+.marker-list-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .15rem 0; border-bottom: 1px solid var(--border);
+}
+.marker-list-row:last-child { border-bottom: none; }
+.marker-list-label { color: var(--text); font-family: monospace; }
+.marker-list-label .anchor-tag { color: var(--accent); margin-left: .3rem; }
+.marker-list-del {
+  background: none; border: 1px solid var(--border); border-radius: 4px;
+  color: var(--red); cursor: pointer; font-size: .65rem; padding: .1rem .35rem;
+  line-height: 1;
+}
+.marker-list-del:hover { border-color: var(--red); background: rgba(239,68,68,.15); }
+.calib-section {
+  padding: .5rem .75rem; border-top: 1px solid var(--border);
   display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
 }
 .calib-btn {
@@ -214,6 +373,20 @@ header h1 { font-size: 1.1rem; color: var(--accent); }
   position: relative;
 }
 #three-container canvas { width: 100% !important; height: 100% !important; }
+.order-badge-link {
+  position: relative; text-decoration: none; cursor: pointer;
+  display: flex; align-items: center; gap: .3rem;
+  padding: .3rem .6rem; border-radius: 6px;
+  border: 1px solid var(--border); color: var(--muted);
+  font-size: .75rem; font-weight: 600; transition: all .15s;
+}
+.order-badge-link:hover { border-color: var(--accent); color: var(--accent); }
+.order-badge-count {
+  display: inline-block; min-width: 16px; height: 16px; line-height: 16px;
+  text-align: center; border-radius: 8px; font-size: .65rem; font-weight: 700;
+  background: var(--red); color: #fff; padding: 0 4px;
+}
+.order-badge-count.zero { background: var(--border); color: var(--muted); }
 </style>
 </head>
 <body>
@@ -221,6 +394,9 @@ header h1 { font-size: 1.1rem; color: var(--accent); }
 <header>
   <h1>Delivery Robot</h1>
   <div style="display:flex; align-items:center; gap:1rem;">
+    <a class="order-badge-link" href="/admin" target="_blank" title="Siparis Yonetimi">
+      Siparisler <span class="order-badge-count zero" id="order-badge">0</span>
+    </a>
     <div class="conn" id="gamepad-status">
       <div class="dot"></div>
       <span>No Gamepad</span>
@@ -248,34 +424,90 @@ header h1 { font-size: 1.1rem; color: var(--accent); }
     </div>
   </div>
 
-  <!-- Controls -->
-  <div class="panel">
-    <div class="panel-head">Controls</div>
-    <div class="joy-area">
-      <div id="joystick-zone">
-        <div id="joy-knob"></div>
-      </div>
+  <!-- Controls (tabbed) -->
+  <div class="panel" id="controls-panel">
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="manual">Manual</button>
+      <button class="tab-btn" data-tab="approach">Approach</button>
+      <button class="tab-btn" data-tab="auto">Auto</button>
+    </div>
 
-      <div class="rot-row">
-        <label>Rotate</label>
-        <input type="range" id="rot-slider" min="-100" max="100" value="0" step="1">
-        <label>QE</label>
-      </div>
+    <!-- Manual tab -->
+    <div class="tab-content active" id="tab-manual">
+      <div class="joy-area">
+        <div id="joystick-zone">
+          <div id="joy-knob"></div>
+        </div>
 
-      <div class="speed-row">
-        <label>Speed</label>
-        <input type="range" id="speed-slider" min="10" max="100" value="100" step="5">
-        <span id="speed-val">1.0x</span>
-      </div>
+        <div class="rot-row">
+          <label>Rotate</label>
+          <input type="range" id="rot-slider" min="-100" max="100" value="0" step="1">
+          <label>QE</label>
+        </div>
 
-      <div class="keys">
-        <div class="key" data-key="q">Q<small>rot L</small></div>
-        <div class="key" style="grid-column:2" data-key="w">W<small>fwd</small></div>
-        <div class="key" data-key="e">E<small>rot R</small></div>
-        <div class="key" data-key="a">A<small>left</small></div>
-        <div class="key" style="grid-column:2" data-key="s">S<small>back</small></div>
-        <div class="key" data-key="d">D<small>right</small></div>
-        <div class="key" style="grid-column:4/6" data-key="shift">Shift<small>boost</small></div>
+        <div class="speed-row">
+          <label>Speed</label>
+          <input type="range" id="speed-slider" min="10" max="100" value="100" step="5">
+          <span id="speed-val">1.0x</span>
+        </div>
+
+        <div class="keys">
+          <div class="key" data-key="q">Q<small>rot L</small></div>
+          <div class="key" style="grid-column:2" data-key="w">W<small>fwd</small></div>
+          <div class="key" data-key="e">E<small>rot R</small></div>
+          <div class="key" data-key="a">A<small>left</small></div>
+          <div class="key" style="grid-column:2" data-key="s">S<small>back</small></div>
+          <div class="key" data-key="d">D<small>right</small></div>
+          <div class="key" style="grid-column:4/6" data-key="shift">Shift<small>boost</small></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Approach tab -->
+    <div class="tab-content" id="tab-approach">
+      <div class="approach-target">
+        <label for="approach-target-id">Target Marker ID</label>
+        <input type="number" id="approach-target-id" min="0" step="1" value="0">
+      </div>
+      <div class="approach-btns">
+        <button class="approach-btn start" id="approach-start">Start</button>
+        <button class="approach-btn stop on" id="approach-stop">Stop</button>
+      </div>
+      <div class="approach-state-banner" id="approach-banner">IDLE</div>
+      <div class="approach-distance">
+        <span class="label">Size ratio</span>
+        <span class="value" id="approach-dist">--</span>
+      </div>
+    </div>
+
+    <!-- Auto / delivery tab -->
+    <div class="tab-content" id="tab-auto">
+      <div class="auto-controls">
+        <label>Dest:</label>
+        <select id="auto-dest-mode" style="width:auto;flex:0;">
+          <option value="marker">Marker</option>
+          <option value="point">Point</option>
+        </select>
+        <select id="auto-dest-select"><option value="">-- select marker --</option></select>
+        <span id="auto-dest-point-label" style="display:none;font-size:.8rem;color:var(--text);font-family:monospace;">Click map to set</span>
+        <div class="auto-btns">
+          <button class="auto-btn start" id="auto-start-btn" disabled>Start</button>
+          <button class="auto-btn pause" id="auto-pause-btn" style="display:none">Pause</button>
+          <button class="auto-btn cancel" id="auto-cancel-btn" style="display:none">Cancel</button>
+        </div>
+      </div>
+      <div class="auto-state-banner" id="auto-state-banner">IDLE</div>
+      <div class="auto-map-wrap">
+        <canvas id="auto-map-canvas"></canvas>
+      </div>
+      <div style="display:flex;justify-content:flex-end;padding:.3rem .75rem;">
+        <button class="auto-btn clear" id="auto-clear-wpts">Clear Waypoints</button>
+      </div>
+      <div class="auto-status-bar" id="auto-status-bar">
+        <div class="auto-stat"><div class="label">Distance</div><div class="value" id="auto-dist">--</div></div>
+        <div class="auto-stat"><div class="label">Waypoint</div><div class="value" id="auto-wp">--</div></div>
+        <div class="auto-stat"><div class="label">Heading</div><div class="value" id="auto-hdg">--</div></div>
+        <div class="auto-stat"><div class="label">State</div><div class="value" id="auto-state-val">IDLE</div></div>
       </div>
     </div>
   </div>
@@ -289,9 +521,14 @@ header h1 { font-size: 1.1rem; color: var(--accent); }
       <div class="motor-card" id="mc-rl"><div class="name">Rear Left</div><div class="motor-bar-bg"><div class="motor-bar"></div></div><div class="motor-val">0%</div><div class="motor-dir"></div></div>
       <div class="motor-card" id="mc-rr"><div class="name">Rear Right</div><div class="motor-bar-bg"><div class="motor-bar"></div></div><div class="motor-val">0%</div><div class="motor-dir"></div></div>
     </div>
-    <div class="mode-row">
-      <button class="mode-btn active" id="mode-manual">Manual</button>
-      <button class="mode-btn" id="mode-auto" disabled>Autonomous</button>
+    <div class="direction-indicator" id="dir-indicator">
+      <div class="dir-arrows">
+        <div class="dir-arrow" id="dir-arrow" style="display:none">
+          <svg viewBox="0 0 24 24"><path d="M12 2L6 14h4v8h4v-8h4z"/></svg>
+        </div>
+        <div class="dir-rotation" id="dir-rot" style="display:none"></div>
+      </div>
+      <div class="dir-label" id="dir-label">Stopped</div>
     </div>
   </div>
 
@@ -308,6 +545,15 @@ header h1 { font-size: 1.1rem; color: var(--accent); }
         <div><div class="label">EKF</div><div class="value" id="ekf-state">Inactive</div></div>
       </div>
       <div class="loc-item">
+        <div class="dot" id="imu-dot" style="background:var(--muted)"></div>
+        <div><div class="label">IMU</div><div class="value" id="imu-state">--</div></div>
+      </div>
+      <div class="loc-item" style="grid-column: 1 / -1;">
+        <div style="display:flex; gap:1.2rem; font-size:0.82rem; opacity:0.85; width:100%;">
+          <span>Gyro Z: <span id="imu-gz-val">--</span></span>
+        </div>
+      </div>
+      <div class="loc-item">
         <div class="dot" style="background:var(--accent)"></div>
         <div><div class="label">ArUco Visible</div><div class="value" id="aruco-count">0</div></div>
       </div>
@@ -317,6 +563,18 @@ header h1 { font-size: 1.1rem; color: var(--accent); }
         <div>Yaw: <span id="pos-yaw">--</span></div>
       </div>
     </div>
+    <div class="loc-actions">
+      <button class="loc-toggle" id="loc-toggle-btn">Start Localization</button>
+      <span class="loc-toggle-status" id="loc-toggle-status"></span>
+    </div>
+    <div class="map-selector">
+      <select id="map-select"></select>
+      <button class="map-btn" id="map-use-btn" title="Switch to selected map">Use</button>
+      <button class="map-btn" id="map-new-btn" title="New map">+ New</button>
+      <button class="map-btn delete" id="map-del-btn" title="Delete selected map">Del</button>
+      <span class="map-badge" id="map-badge"></span>
+    </div>
+    <div class="marker-list" id="marker-list"></div>
     <div class="calib-section" id="calib-section">
       <button class="calib-btn" id="calib-btn">Calibrate Camera</button>
       <span class="calib-status" id="calib-status"></span>
@@ -445,8 +703,12 @@ window._updateRobot3D = function(x, y, yawDeg) {
         const data = JSON.parse(e.data);
         handleStatus(data);
         handleLocalization(data);
+        handleApproach(data);
+        handleDelivery(data);
         handlePointCloud(data);
         handleCalibration(data);
+        handleLocStackStatus(data);
+        handleOrderBadge(data);
       } catch(_) {}
     };
   }
@@ -461,6 +723,89 @@ window._updateRobot3D = function(x, y, yawDeg) {
       document.exitFullscreen();
     }
   });
+
+  // --- Mode tabs ---
+  let currentMode = 'manual';
+  const tabBtns = document.querySelectorAll('.tab-btn');
+  const tabContents = document.querySelectorAll('.tab-content');
+
+  function switchMode(mode) {
+    if (currentMode === 'approach' && mode !== 'approach') {
+      wsSend({ approach: { armed: false } });
+      approachArmed = false;
+      updateApproachBtns();
+    }
+    if (currentMode === 'auto' && mode !== 'auto') {
+      wsSend({ delivery: { action: 'cancel' } });
+      plannedWaypoints = [];
+      destPoint = null;
+      settingDestPoint = false;
+    }
+    if (currentMode === 'manual' && mode !== 'manual') {
+      sendCmd(0, 0, 0);
+    }
+    currentMode = mode;
+    tabBtns.forEach(b => b.classList.toggle('active', b.dataset.tab === mode));
+    tabContents.forEach(c => c.classList.toggle('active', c.id === 'tab-' + mode));
+    drawArucoOverlay();
+    if (mode === 'auto') {
+      populateDestSelect();
+      drawAutoMap();
+    }
+  }
+
+  tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => switchMode(btn.dataset.tab));
+  });
+
+  // --- Approach controls ---
+  const approachStartBtn = document.getElementById('approach-start');
+  const approachStopBtn = document.getElementById('approach-stop');
+  const approachTargetInput = document.getElementById('approach-target-id');
+  const approachBanner = document.getElementById('approach-banner');
+  const approachDist = document.getElementById('approach-dist');
+  let approachArmed = false;
+  let approachTargetId = 0;
+
+  function updateApproachBtns() {
+    approachStartBtn.classList.toggle('on', approachArmed);
+    approachStopBtn.classList.toggle('on', !approachArmed);
+  }
+
+  approachStartBtn.addEventListener('click', () => {
+    approachArmed = true;
+    updateApproachBtns();
+    approachTargetId = parseInt(approachTargetInput.value) || 0;
+    wsSend({ approach: { armed: true, target_id: approachTargetId } });
+  });
+
+  approachStopBtn.addEventListener('click', () => {
+    approachArmed = false;
+    updateApproachBtns();
+    wsSend({ approach: { armed: false } });
+  });
+
+  approachTargetInput.addEventListener('change', () => {
+    approachTargetId = parseInt(approachTargetInput.value) || 0;
+    wsSend({ approach: { target_id: approachTargetId } });
+  });
+
+  function handleApproach(data) {
+    if (!data.approach) return;
+    const a = data.approach;
+    approachArmed = a.armed;
+    approachTargetId = a.target_id;
+    updateApproachBtns();
+
+    approachBanner.textContent = a.state;
+    approachBanner.className = 'approach-state-banner st-' + a.state;
+
+    if (a.visible && a.size_norm > 0) {
+      approachDist.textContent = a.size_norm.toFixed(2) + 'x';
+    } else {
+      approachDist.textContent = '--';
+    }
+  }
 
   function sendCmd(lx, ly, az) {
     if (ws && ws.readyState === 1) {
@@ -484,6 +829,55 @@ window._updateRobot3D = function(x, y, yawDeg) {
       dir: el.querySelector('.motor-dir'),
     };
   });
+
+  // --- Direction indicator ---
+  const dirArrowEl = document.getElementById('dir-arrow');
+  const dirRotEl = document.getElementById('dir-rot');
+  const dirLabelEl = document.getElementById('dir-label');
+  const DIR_DEADZONE = 0.02;
+
+  function computeRobotDirection(dc) {
+    const fl = dc[0], fr = dc[1], rl = dc[2], rr = dc[3];
+    const vx = (fl + fr + rl + rr) / 4;
+    const vy = (-fl + fr + rl - rr) / 4;
+    const omega = (-fl + fr - rl + rr) / 4;
+    const mag = Math.hypot(vx, vy);
+    const angle = Math.atan2(-vy, vx) * (180 / Math.PI);
+
+    let parts = [];
+    if (Math.abs(vx) > DIR_DEADZONE) parts.push(vx > 0 ? 'Forward' : 'Reverse');
+    if (Math.abs(vy) > DIR_DEADZONE) parts.push(vy > 0 ? 'Strafe R' : 'Strafe L');
+    if (Math.abs(omega) > DIR_DEADZONE) parts.push(omega > 0 ? 'CCW' : 'CW');
+
+    const label = parts.length ? parts.join(' + ') : 'Stopped';
+    return { angle, mag, omega, label };
+  }
+
+  function updateDirectionIndicator(dc) {
+    const { angle, mag, omega, label } = computeRobotDirection(dc);
+    const transActive = mag > DIR_DEADZONE;
+    const rotActive = Math.abs(omega) > DIR_DEADZONE;
+
+    if (transActive) {
+      dirArrowEl.style.display = '';
+      const opacity = 0.4 + Math.min(mag, 1.0) * 0.6;
+      const scale = 0.8 + Math.min(mag, 1.0) * 0.2;
+      dirArrowEl.style.opacity = opacity;
+      dirArrowEl.style.transform = `rotate(${angle}deg) scale(${scale})`;
+    } else {
+      dirArrowEl.style.display = 'none';
+    }
+
+    if (rotActive) {
+      dirRotEl.style.display = '';
+      dirRotEl.style.opacity = 0.4 + Math.min(Math.abs(omega), 1.0) * 0.6;
+      dirRotEl.textContent = omega > 0 ? '↺' : '↻';
+    } else {
+      dirRotEl.style.display = 'none';
+    }
+
+    dirLabelEl.textContent = label;
+  }
 
   // --- Stats monitor ---
   const stFps = document.getElementById('st-fps');
@@ -545,6 +939,7 @@ window._updateRobot3D = function(x, y, yawDeg) {
       motorCards[i].val.textContent = sign + pct.toFixed(0) + '%';
       motorCards[i].dir.textContent = d > 0.001 ? 'FWD' : d < -0.001 ? 'REV' : '';
     });
+    if (s.duty_cycles) updateDirectionIndicator(s.duty_cycles);
   }
 
   // --- Localization status ---
@@ -552,6 +947,9 @@ window._updateRobot3D = function(x, y, yawDeg) {
   const vslamState = document.getElementById('vslam-state');
   const ekfDot = document.getElementById('ekf-dot');
   const ekfState = document.getElementById('ekf-state');
+  const imuDot = document.getElementById('imu-dot');
+  const imuStateEl = document.getElementById('imu-state');
+  const imuGzVal = document.getElementById('imu-gz-val');
   const arucoCount = document.getElementById('aruco-count');
   const posX = document.getElementById('pos-x');
   const posY = document.getElementById('pos-y');
@@ -572,6 +970,15 @@ window._updateRobot3D = function(x, y, yawDeg) {
 
     ekfDot.style.background = loc.ekf_active ? 'var(--green)' : 'var(--red)';
     ekfState.textContent = loc.ekf_active ? 'Active' : 'Inactive';
+
+    imuDot.style.background = loc.imu_active ? 'var(--green)' : 'var(--muted)';
+    if (loc.imu_active) {
+      imuStateEl.textContent = 'Active';
+      imuGzVal.textContent = loc.imu_gyro_z.toFixed(2) + '\u00b0/s';
+    } else {
+      imuStateEl.textContent = '--';
+      imuGzVal.textContent = '--';
+    }
 
     if (loc.position) {
       robotPos = { x: loc.position.x, y: loc.position.y, yaw: loc.position.yaw };
@@ -601,6 +1008,155 @@ window._updateRobot3D = function(x, y, yawDeg) {
       window._updatePointCloud(data.point_cloud);
     }
   }
+
+  // --- Localization toggle ---
+  const locToggleBtn = document.getElementById('loc-toggle-btn');
+  const locToggleStatus = document.getElementById('loc-toggle-status');
+  let locRunning = false;
+
+  locToggleBtn.addEventListener('click', () => {
+    if (!locRunning) {
+      wsSend({ localization: 'start' });
+      locToggleBtn.textContent = 'Starting...';
+      locToggleBtn.disabled = true;
+    } else {
+      wsSend({ localization: 'stop' });
+      locToggleBtn.textContent = 'Stopping...';
+      locToggleBtn.disabled = true;
+    }
+  });
+
+  function handleLocStackStatus(data) {
+    if (!data.loc_stack) return;
+    const st = data.loc_stack;
+    locRunning = st.running;
+    locToggleBtn.disabled = false;
+    if (st.running) {
+      locToggleBtn.textContent = 'Stop Localization';
+      locToggleBtn.classList.add('running');
+      locToggleStatus.textContent = '';
+    } else {
+      locToggleBtn.textContent = 'Start Localization';
+      locToggleBtn.classList.remove('running');
+      locToggleStatus.textContent = st.error || '';
+    }
+  }
+
+  // --- Map Management ---
+  const mapSelect = document.getElementById('map-select');
+  const mapUseBtn = document.getElementById('map-use-btn');
+  const mapNewBtn = document.getElementById('map-new-btn');
+  const mapDelBtn = document.getElementById('map-del-btn');
+  const mapBadge = document.getElementById('map-badge');
+  const markerListEl = document.getElementById('marker-list');
+  let activeMapFilename = '';
+  let activeAnchors = [];
+
+  async function loadMaps() {
+    try {
+      const res = await fetch('/api/maps');
+      const maps = await res.json();
+      const prevSelected = mapSelect.value;
+      mapSelect.innerHTML = '';
+      maps.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.filename;
+        opt.textContent = m.name + (m.active ? ' (active)' : '');
+        if (m.active) activeMapFilename = m.filename;
+        mapSelect.appendChild(opt);
+      });
+      if (prevSelected && [...mapSelect.options].some(o => o.value === prevSelected)) {
+        mapSelect.value = prevSelected;
+      } else {
+        mapSelect.value = activeMapFilename;
+      }
+      const active = maps.find(m => m.active);
+      if (active) {
+        activeAnchors = active.anchors || [];
+        const learned = active.marker_count - activeAnchors.length;
+        mapBadge.textContent = active.marker_count + ' markers' + (learned > 0 ? ' (' + learned + ' learned)' : '');
+      }
+      updateMapButtons();
+    } catch (e) { /* ignore */ }
+  }
+
+  function updateMapButtons() {
+    const isActive = mapSelect.value === activeMapFilename;
+    mapUseBtn.disabled = isActive;
+    mapDelBtn.disabled = isActive;
+    mapUseBtn.style.opacity = isActive ? '0.4' : '1';
+    mapDelBtn.style.opacity = isActive ? '0.4' : '1';
+  }
+
+  mapSelect.addEventListener('change', updateMapButtons);
+
+  mapUseBtn.addEventListener('click', async () => {
+    const filename = mapSelect.value;
+    if (filename === activeMapFilename) return;
+    mapBadge.textContent = 'Switching...';
+    try {
+      await fetch('/api/maps/active', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({filename}),
+      });
+      await loadMaps();
+      fetchMarkers();
+    } catch (e) {
+      mapBadge.textContent = 'Error switching';
+    }
+  });
+
+  mapNewBtn.addEventListener('click', async () => {
+    const name = prompt('New map name:');
+    if (!name) return;
+    try {
+      const res = await fetch('/api/maps', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          name,
+          anchors: [1, 2],
+          markers: {
+            1: {x: 0.0, y: 0.0, z: 0.285},
+            2: {x: -0.52, y: 0.0, z: 0.285}
+          }
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        await fetch('/api/maps/active', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({filename: data.filename}),
+        });
+        await loadMaps();
+        fetchMarkers();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to create map');
+      }
+    } catch (e) { alert('Network error'); }
+  });
+
+  mapDelBtn.addEventListener('click', async () => {
+    const filename = mapSelect.value;
+    if (!filename) return;
+    const name = mapSelect.options[mapSelect.selectedIndex].textContent;
+    if (!confirm('Delete map "' + name + '"?')) return;
+    try {
+      const res = await fetch('/api/maps/' + encodeURIComponent(filename), {method: 'DELETE'});
+      if (res.ok) {
+        await loadMaps();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to delete');
+      }
+    } catch (e) { alert('Network error'); }
+  });
+
+  loadMaps();
+  setInterval(() => { loadMaps(); fetchMarkers(); }, 5000);
 
   // --- Calibration ---
   const calibBtn = document.getElementById('calib-btn');
@@ -666,15 +1222,17 @@ window._updateRobot3D = function(x, y, yawDeg) {
     const sx = w / 640;
     const sy = h / 480;
 
-    // Draw ArUco detections as green quads
     if (arucoDetections.length > 0) {
-      overlayCtx.strokeStyle = '#22c55e';
-      overlayCtx.lineWidth = 2;
+      const inApproach = currentMode === 'approach';
       overlayCtx.font = '12px monospace';
-      overlayCtx.fillStyle = '#22c55e';
 
       for (const det of arucoDetections) {
         if (!det.corners || det.corners.length < 4) continue;
+        const isTarget = inApproach && det.id === approachTargetId;
+        overlayCtx.strokeStyle = isTarget ? '#22c55e' : (inApproach ? '#94a3b8' : '#22c55e');
+        overlayCtx.lineWidth = isTarget ? 3 : 1.5;
+        overlayCtx.fillStyle = overlayCtx.strokeStyle;
+
         overlayCtx.beginPath();
         overlayCtx.moveTo(det.corners[0][0] * sx, det.corners[0][1] * sy);
         for (let i = 1; i < det.corners.length; i++) {
@@ -712,11 +1270,57 @@ window._updateRobot3D = function(x, y, yawDeg) {
   const mapCtx = mapCanvas.getContext('2d');
   let markers = [];
 
-  // Fetch marker positions
-  fetch('/api/markers').then(r => r.json()).then(data => {
-    markers = data || [];
-    drawMap();
-  }).catch(() => {});
+  function fetchMarkers() {
+    fetch('/api/markers').then(r => r.json()).then(data => {
+      markers = data || [];
+      drawMap();
+      renderMarkerList();
+    }).catch(() => {});
+  }
+  fetchMarkers();
+
+  function renderMarkerList() {
+    markerListEl.innerHTML = '';
+    if (!markers.length) {
+      markerListEl.textContent = 'No markers';
+      return;
+    }
+    const sorted = [...markers].sort((a, b) => a.id - b.id);
+    for (const m of sorted) {
+      const row = document.createElement('div');
+      row.className = 'marker-list-row';
+      const label = document.createElement('span');
+      label.className = 'marker-list-label';
+      const isAnchor = activeAnchors.includes(m.id);
+      label.innerHTML = 'ID ' + m.id + ' (' + (m.x||0).toFixed(2) + ', ' + (m.y||0).toFixed(2) + ')'
+        + (isAnchor ? '<span class="anchor-tag">anchor</span>' : '');
+      const btn = document.createElement('button');
+      btn.className = 'marker-list-del';
+      btn.textContent = '\u00d7';
+      btn.title = 'Delete marker ' + m.id;
+      btn.addEventListener('click', () => deleteMarker(m.id, isAnchor));
+      row.appendChild(label);
+      row.appendChild(btn);
+      markerListEl.appendChild(row);
+    }
+  }
+
+  async function deleteMarker(id, isAnchor) {
+    const warning = isAnchor
+      ? 'Marker ' + id + ' is an anchor. Removing it may break localization. Delete anyway?'
+      : 'Delete marker ' + id + '?';
+    if (!confirm(warning)) return;
+    try {
+      const res = await fetch('/api/maps/markers/' + id, { method: 'DELETE' });
+      if (res.ok) {
+        await loadMaps();
+        fetchMarkers();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to delete marker');
+      }
+    } catch (e) { alert('Network error'); }
+  }
 
   function drawMap() {
     const dpr = window.devicePixelRatio || 1;
@@ -758,8 +1362,8 @@ window._updateRobot3D = function(x, y, yawDeg) {
     const scale = Math.min(usableW / rangeX, usableH / rangeY);
 
     function toScreen(px, py) {
-      const sx = mapPad + (px - minX) * scale + (usableW - rangeX * scale) / 2;
-      const sy = mapPad + (maxY - py) * scale + (usableH - rangeY * scale) / 2;
+      const sx = mapPad + (maxX - px) * scale + (usableW - rangeX * scale) / 2;
+      const sy = mapPad + (py - minY) * scale + (usableH - rangeY * scale) / 2;
       return [sx, sy];
     }
 
@@ -807,12 +1411,14 @@ window._updateRobot3D = function(x, y, yawDeg) {
     }
 
     // Draw robot as directional triangle
+    // toScreen flips: map +X→screen left, map +Y→screen down
+    // Triangle tip points right at rotation 0, so canvas_rot = pi + yawRad
     const [rx, ry] = toScreen(robotPos.x, robotPos.y);
     const yawRad = -(robotPos.yaw * Math.PI / 180);
     const triSize = 10;
     mapCtx.save();
     mapCtx.translate(rx, ry);
-    mapCtx.rotate(yawRad);
+    mapCtx.rotate(Math.PI + yawRad);
     mapCtx.fillStyle = '#38bdf8';
     mapCtx.beginPath();
     mapCtx.moveTo(triSize, 0);
@@ -907,6 +1513,397 @@ window._updateRobot3D = function(x, y, yawDeg) {
     if (keyEls[k]) keyEls[k].classList.remove('active');
   });
 
+  // --- Auto / Delivery tab ---
+  const autoDestModeSelect = document.getElementById('auto-dest-mode');
+  const autoDestSelect = document.getElementById('auto-dest-select');
+  const autoDestPointLabel = document.getElementById('auto-dest-point-label');
+  const autoStartBtn = document.getElementById('auto-start-btn');
+  const autoPauseBtn = document.getElementById('auto-pause-btn');
+  const autoCancelBtn = document.getElementById('auto-cancel-btn');
+  const autoStateBanner = document.getElementById('auto-state-banner');
+  const autoClearWpts = document.getElementById('auto-clear-wpts');
+  const autoDistEl = document.getElementById('auto-dist');
+  const autoWpEl = document.getElementById('auto-wp');
+  const autoHdgEl = document.getElementById('auto-hdg');
+  const autoStateVal = document.getElementById('auto-state-val');
+  const autoCanvas = document.getElementById('auto-map-canvas');
+  const autoCtx = autoCanvas.getContext('2d');
+
+  let plannedWaypoints = [];
+  let deliveryState = 'IDLE';
+  let deliveryData = null;
+  let destMode = 'marker';       // 'marker' or 'point'
+  let destPoint = null;          // {x, y} for arbitrary point mode
+  let settingDestPoint = false;  // true = next click sets dest, not waypoint
+
+  // Map transform vars (shared between drawAutoMap and fromScreen)
+  let autoMapVars = { maxX:0, minX:0, minY:0, scale:1, mapPad:20, usableW:0, usableH:0, rangeX:1, rangeY:1 };
+
+  function populateDestSelect() {
+    fetch('/api/markers').then(r => r.json()).then(data => {
+      const cur = autoDestSelect.value;
+      autoDestSelect.innerHTML = '<option value="">-- select marker --</option>';
+      for (const m of (data || [])) {
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = 'Marker ' + m.id;
+        autoDestSelect.appendChild(opt);
+      }
+      if (cur) autoDestSelect.value = cur;
+      updateAutoButtons();
+    }).catch(() => {});
+  }
+
+  autoDestModeSelect.addEventListener('change', () => {
+    destMode = autoDestModeSelect.value;
+    if (destMode === 'marker') {
+      autoDestSelect.style.display = '';
+      autoDestPointLabel.style.display = 'none';
+      destPoint = null;
+      settingDestPoint = false;
+    } else {
+      autoDestSelect.style.display = 'none';
+      autoDestPointLabel.style.display = '';
+      autoDestPointLabel.textContent = destPoint
+        ? `(${destPoint.x.toFixed(2)}, ${destPoint.y.toFixed(2)})`
+        : 'Click map to set';
+      settingDestPoint = !destPoint;
+    }
+    updateAutoButtons();
+    drawAutoMap();
+  });
+
+  autoDestSelect.addEventListener('change', () => {
+    updateAutoButtons();
+    drawAutoMap();
+  });
+
+  function updateAutoButtons() {
+    const hasDest = destMode === 'marker' ? autoDestSelect.value !== '' : destPoint !== null;
+    if (deliveryState === 'IDLE') {
+      autoStartBtn.style.display = '';
+      autoStartBtn.disabled = !hasDest;
+      autoPauseBtn.style.display = 'none';
+      autoCancelBtn.style.display = 'none';
+      autoClearWpts.disabled = false;
+    } else if (deliveryState === 'NAVIGATING' || deliveryState === 'APPROACHING') {
+      autoStartBtn.style.display = 'none';
+      autoPauseBtn.style.display = '';
+      autoPauseBtn.textContent = 'Pause';
+      autoCancelBtn.style.display = '';
+      autoClearWpts.disabled = true;
+    } else if (deliveryState === 'PAUSED') {
+      autoStartBtn.style.display = 'none';
+      autoPauseBtn.style.display = '';
+      autoPauseBtn.textContent = 'Resume';
+      autoCancelBtn.style.display = '';
+      autoClearWpts.disabled = true;
+    } else {
+      autoStartBtn.style.display = 'none';
+      autoPauseBtn.style.display = 'none';
+      autoCancelBtn.style.display = 'none';
+      autoClearWpts.disabled = true;
+    }
+  }
+
+  autoStartBtn.addEventListener('click', () => {
+    const wps = plannedWaypoints.map(w => ({x: w.x, y: w.y}));
+    if (destMode === 'marker') {
+      const targetId = parseInt(autoDestSelect.value);
+      if (isNaN(targetId)) return;
+      wsSend({ delivery: { action: 'start', target_marker_id: targetId, waypoints: wps } });
+    } else {
+      if (!destPoint) return;
+      wsSend({ delivery: {
+        action: 'start', target_marker_id: 255,
+        destination: { x: destPoint.x, y: destPoint.y },
+        waypoints: wps
+      } });
+    }
+  });
+
+  autoPauseBtn.addEventListener('click', () => {
+    if (deliveryState === 'PAUSED') {
+      wsSend({ delivery: { action: 'resume' } });
+    } else {
+      wsSend({ delivery: { action: 'pause' } });
+    }
+  });
+
+  autoCancelBtn.addEventListener('click', () => {
+    wsSend({ delivery: { action: 'cancel' } });
+  });
+
+  autoClearWpts.addEventListener('click', () => {
+    plannedWaypoints = [];
+    if (destMode === 'point') {
+      destPoint = null;
+      settingDestPoint = true;
+      autoDestPointLabel.textContent = 'Click map to set';
+      updateAutoButtons();
+    }
+    drawAutoMap();
+  });
+
+  // Click on auto map to place waypoints or set destination point
+  autoCanvas.addEventListener('click', (e) => {
+    if (deliveryState !== 'IDLE') return;
+    const rect = autoCanvas.getBoundingClientRect();
+    const sx = (e.clientX - rect.left);
+    const sy = (e.clientY - rect.top);
+    const v = autoMapVars;
+    if (v.scale <= 0) return;
+    const px = v.maxX - (sx - v.mapPad - (v.usableW - v.rangeX * v.scale) / 2) / v.scale;
+    const py = v.minY + (sy - v.mapPad - (v.usableH - v.rangeY * v.scale) / 2) / v.scale;
+
+    if (destMode === 'point' && settingDestPoint) {
+      destPoint = { x: px, y: py };
+      settingDestPoint = false;
+      autoDestPointLabel.textContent = `(${px.toFixed(2)}, ${py.toFixed(2)})`;
+      updateAutoButtons();
+    } else {
+      plannedWaypoints.push({ x: px, y: py });
+    }
+    drawAutoMap();
+  });
+
+  // Right-click to remove nearest waypoint
+  autoCanvas.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (deliveryState !== 'IDLE' || plannedWaypoints.length === 0) return;
+    const rect = autoCanvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const v = autoMapVars;
+    const px = v.maxX - (sx - v.mapPad - (v.usableW - v.rangeX * v.scale) / 2) / v.scale;
+    const py = v.minY + (sy - v.mapPad - (v.usableH - v.rangeY * v.scale) / 2) / v.scale;
+    let bestIdx = 0, bestDist = Infinity;
+    for (let i = 0; i < plannedWaypoints.length; i++) {
+      const d = Math.hypot(plannedWaypoints[i].x - px, plannedWaypoints[i].y - py);
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    }
+    plannedWaypoints.splice(bestIdx, 1);
+    drawAutoMap();
+  });
+
+  function handleDelivery(data) {
+    if (!data.delivery) return;
+    const d = data.delivery;
+    deliveryData = d;
+    deliveryState = d.state || 'IDLE';
+
+    autoStateBanner.textContent = d.message || d.state || 'IDLE';
+    autoStateBanner.className = 'auto-state-banner st-' + deliveryState;
+    autoStateVal.textContent = deliveryState;
+
+    if (deliveryState === 'IDLE') {
+      autoDistEl.textContent = '--';
+      autoWpEl.textContent = '--';
+      autoHdgEl.textContent = '--';
+    } else {
+      autoDistEl.textContent = d.distance_to_waypoint.toFixed(1) + 'm';
+      autoWpEl.textContent = (d.current_waypoint_index + 1) + '/' + d.total_waypoints;
+      autoHdgEl.textContent = d.heading_error.toFixed(0) + '\u00b0';
+    }
+
+    updateAutoButtons();
+    if (currentMode === 'auto') drawAutoMap();
+  }
+
+  function drawAutoMap() {
+    const dpr = window.devicePixelRatio || 1;
+    const displayW = autoCanvas.clientWidth;
+    const displayH = autoCanvas.clientHeight;
+    if (displayW === 0 || displayH === 0) return;
+    autoCanvas.width = displayW * dpr;
+    autoCanvas.height = displayH * dpr;
+    autoCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    autoCtx.fillStyle = '#0f172a';
+    autoCtx.fillRect(0, 0, displayW, displayH);
+
+    // Gather all points for bounds
+    let allPts = markers.map(m => ({ x: m.x || 0, y: m.y || 0 }));
+    allPts.push(robotPos);
+    allPts = allPts.concat(breadcrumbs);
+    allPts = allPts.concat(plannedWaypoints);
+    if (destPoint) allPts.push(destPoint);
+    if (allPts.length === 0) return;
+
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const p of allPts) {
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.y > maxY) maxY = p.y;
+    }
+
+    const pad = 0.5;
+    minX -= pad; maxX += pad; minY -= pad; maxY += pad;
+    const rangeX = maxX - minX || 1;
+    const rangeY = maxY - minY || 1;
+
+    const mapPad = 20;
+    const usableW = displayW - mapPad * 2;
+    const usableH = displayH - mapPad * 2;
+    const scale = Math.min(usableW / rangeX, usableH / rangeY);
+
+    // Store for fromScreen
+    autoMapVars = { maxX, minX, minY, scale, mapPad, usableW, usableH, rangeX, rangeY };
+
+    function toS(px, py) {
+      const sx = mapPad + (maxX - px) * scale + (usableW - rangeX * scale) / 2;
+      const sy = mapPad + (py - minY) * scale + (usableH - rangeY * scale) / 2;
+      return [sx, sy];
+    }
+
+    // Grid
+    autoCtx.strokeStyle = '#1e293b';
+    autoCtx.lineWidth = 0.5;
+    const gridStep = Math.pow(10, Math.floor(Math.log10(rangeX))) || 1;
+    for (let gx = Math.floor(minX / gridStep) * gridStep; gx <= maxX; gx += gridStep) {
+      const [sx] = toS(gx, 0);
+      autoCtx.beginPath(); autoCtx.moveTo(sx, mapPad); autoCtx.lineTo(sx, displayH - mapPad); autoCtx.stroke();
+    }
+    for (let gy = Math.floor(minY / gridStep) * gridStep; gy <= maxY; gy += gridStep) {
+      const [, sy] = toS(0, gy);
+      autoCtx.beginPath(); autoCtx.moveTo(mapPad, sy); autoCtx.lineTo(displayW - mapPad, sy); autoCtx.stroke();
+    }
+
+    // Markers
+    autoCtx.font = '10px monospace';
+    autoCtx.textAlign = 'center';
+    const selectedDest = destMode === 'marker' ? parseInt(autoDestSelect.value) : NaN;
+    for (const m of markers) {
+      const mx = m.x !== undefined ? m.x : 0;
+      const my = m.y !== undefined ? m.y : 0;
+      const [sx, sy] = toS(mx, my);
+      const isDest = (m.id === selectedDest);
+      autoCtx.fillStyle = isDest ? '#22c55e' : '#eab308';
+      autoCtx.fillRect(sx - 5, sy - 5, 10, 10);
+      if (isDest) {
+        autoCtx.strokeStyle = '#22c55e';
+        autoCtx.lineWidth = 2;
+        autoCtx.strokeRect(sx - 8, sy - 8, 16, 16);
+      }
+      autoCtx.fillStyle = isDest ? '#22c55e' : '#eab308';
+      autoCtx.fillText('' + (m.id !== undefined ? m.id : ''), sx, sy - 10);
+    }
+
+    // Arbitrary destination point
+    if (destMode === 'point' && destPoint) {
+      const [dx, dy] = toS(destPoint.x, destPoint.y);
+      autoCtx.fillStyle = '#22c55e';
+      autoCtx.beginPath();
+      autoCtx.arc(dx, dy, 7, 0, Math.PI * 2);
+      autoCtx.fill();
+      autoCtx.strokeStyle = '#22c55e';
+      autoCtx.lineWidth = 2;
+      autoCtx.beginPath();
+      autoCtx.moveTo(dx - 12, dy); autoCtx.lineTo(dx + 12, dy);
+      autoCtx.moveTo(dx, dy - 12); autoCtx.lineTo(dx, dy + 12);
+      autoCtx.stroke();
+      autoCtx.fillStyle = '#22c55e';
+      autoCtx.fillText('DEST', dx, dy - 12);
+    }
+
+    // Breadcrumbs
+    if (breadcrumbs.length > 1) {
+      autoCtx.strokeStyle = 'rgba(56,189,248,0.2)';
+      autoCtx.lineWidth = 1;
+      autoCtx.beginPath();
+      const [bx0, by0] = toS(breadcrumbs[0].x, breadcrumbs[0].y);
+      autoCtx.moveTo(bx0, by0);
+      for (let i = 1; i < breadcrumbs.length; i++) {
+        const [bx, by] = toS(breadcrumbs[i].x, breadcrumbs[i].y);
+        autoCtx.lineTo(bx, by);
+      }
+      autoCtx.stroke();
+    }
+
+    // Planned route line + waypoints
+    const destMarker = destMode === 'marker' ? markers.find(m => m.id === selectedDest) : null;
+    const destTarget = destMarker ? { x: destMarker.x || 0, y: destMarker.y || 0 }
+                     : (destMode === 'point' && destPoint ? destPoint : null);
+    const routePts = [];
+    routePts.push({ x: robotPos.x, y: robotPos.y });
+    for (const wp of plannedWaypoints) routePts.push(wp);
+    if (destTarget) routePts.push(destTarget);
+
+    if (routePts.length > 1) {
+      const currentWpIdx = deliveryData ? deliveryData.current_waypoint_index : -1;
+      const isActive = deliveryState === 'NAVIGATING' || deliveryState === 'APPROACHING' || deliveryState === 'PAUSED';
+
+      for (let i = 0; i < routePts.length - 1; i++) {
+        const [x1, y1] = toS(routePts[i].x, routePts[i].y);
+        const [x2, y2] = toS(routePts[i+1].x, routePts[i+1].y);
+        autoCtx.beginPath();
+        autoCtx.moveTo(x1, y1);
+        autoCtx.lineTo(x2, y2);
+        if (isActive && i < currentWpIdx) {
+          autoCtx.strokeStyle = '#22c55e';
+          autoCtx.lineWidth = 2;
+          autoCtx.setLineDash([]);
+        } else {
+          autoCtx.strokeStyle = 'rgba(34,197,94,0.5)';
+          autoCtx.lineWidth = 1.5;
+          autoCtx.setLineDash([5, 4]);
+        }
+        autoCtx.stroke();
+        autoCtx.setLineDash([]);
+      }
+    }
+
+    // Draw planned waypoint circles with index labels
+    autoCtx.font = '9px monospace';
+    autoCtx.textAlign = 'center';
+    for (let i = 0; i < plannedWaypoints.length; i++) {
+      const [wx, wy] = toS(plannedWaypoints[i].x, plannedWaypoints[i].y);
+      const isActive = deliveryState === 'NAVIGATING' || deliveryState === 'APPROACHING' || deliveryState === 'PAUSED';
+      const currentWpIdx = deliveryData ? deliveryData.current_waypoint_index : -1;
+      const isCurrent = isActive && (i === currentWpIdx);
+
+      autoCtx.beginPath();
+      autoCtx.arc(wx, wy, isCurrent ? 7 : 5, 0, Math.PI * 2);
+      if (isActive && i < currentWpIdx) {
+        autoCtx.fillStyle = '#22c55e';
+      } else if (isCurrent) {
+        autoCtx.fillStyle = '#38bdf8';
+      } else {
+        autoCtx.fillStyle = 'rgba(34,197,94,0.6)';
+      }
+      autoCtx.fill();
+      if (isCurrent) {
+        autoCtx.strokeStyle = '#38bdf8';
+        autoCtx.lineWidth = 2;
+        autoCtx.beginPath();
+        autoCtx.arc(wx, wy, 11, 0, Math.PI * 2);
+        autoCtx.stroke();
+      }
+      autoCtx.fillStyle = '#e2e8f0';
+      autoCtx.fillText('' + (i + 1), wx, wy - 10);
+    }
+
+    // Robot triangle
+    const [rx, ry] = toS(robotPos.x, robotPos.y);
+    const yawRad = -(robotPos.yaw * Math.PI / 180);
+    const triSize = 10;
+    autoCtx.save();
+    autoCtx.translate(rx, ry);
+    autoCtx.rotate(Math.PI + yawRad);
+    autoCtx.fillStyle = '#38bdf8';
+    autoCtx.beginPath();
+    autoCtx.moveTo(triSize, 0);
+    autoCtx.lineTo(-triSize * 0.6, -triSize * 0.6);
+    autoCtx.lineTo(-triSize * 0.6, triSize * 0.6);
+    autoCtx.closePath();
+    autoCtx.fill();
+    autoCtx.restore();
+  }
+
+  new ResizeObserver(drawAutoMap).observe(autoCanvas);
+  populateDestSelect();
+
   // --- Gamepad ---
   const GP_DEADZONE = 0.15;
   let gpConnected = false;
@@ -951,8 +1948,10 @@ window._updateRobot3D = function(x, y, yawDeg) {
     gpEl.querySelector('span').textContent = 'No Gamepad';
   });
 
-  // --- Command loop (20Hz) ---
+  // --- Command loop (20Hz, manual mode only) ---
   setInterval(() => {
+    if (currentMode !== 'manual') return;
+
     let lx = joyY, ly = -joyX, az = -rotVal;
     let boost = speedMult;
 
@@ -983,6 +1982,27 @@ window._updateRobot3D = function(x, y, yawDeg) {
       parseFloat(az.toFixed(3))
     );
   }, 50);
+
+  // --- Order badge ---
+  let orderPendingCount = 0;
+  function handleOrderBadge(data) {
+    if (data.new_order) {
+      orderPendingCount++;
+      updateOrderBadge();
+    }
+    if (data.order_update) {
+      if (data.order_update.status !== 'pending') {
+        orderPendingCount = Math.max(0, orderPendingCount - 1);
+        updateOrderBadge();
+      }
+    }
+  }
+  function updateOrderBadge() {
+    const badge = document.getElementById('order-badge');
+    if (!badge) return;
+    badge.textContent = orderPendingCount;
+    badge.classList.toggle('zero', orderPendingCount === 0);
+  }
 
 })();
 </script>

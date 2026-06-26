@@ -1,30 +1,33 @@
 #!/usr/bin/env python3
 """
-Drives the robot toward a target ArUco marker using closed-loop visual
-servoing on pixel position and apparent marker size -- no camera
-calibration required, just /aruco/detections.
+Closed-loop visual servoing toward a target ArUco marker.
 
-Armed/disarmed: the node never drives unless armed via the
-'aruco_approach/armed' topic (std_msgs/Bool). It starts disarmed, so
-detecting the marker alone never moves the robot -- a Start command is
-required. While disarmed it still tracks and publishes status (so the
-UI can show live distance feedback) but always commands zero velocity.
+Consumes /aruco/detections (pixel corners) and drives the robot via
+/cmd_vel.  No camera calibration needed -- all control is based on
+apparent marker position and size in the image.
+
+Safety: the node starts DISARMED and will never move the motors until
+explicitly armed via the /aruco_approach/armed topic.  It still tracks
+and publishes status while disarmed so the UI can show live feedback.
+
+Speed contract: all power parameters are dimensionless [0, 1] values
+that map directly to motor duty-cycle proportions.  There are no m/s
+or rad/s quantities here because the robot has no wheel encoders.
 
 Control strategy:
-  - Lateral centering blends from rotation (far away, small marker) to
-    pure mecanum strafe (close up, large marker). Strafing doesn't swing
-    the camera, so it keeps the marker in frame during the final approach
-    when a body rotation would easily push it out of the FOV.
-  - Forward speed scales down as the marker grows (apparent size) and as
-    centering error grows, so it naturally decelerates into the target
-    instead of overshooting.
+  Far from marker  -> rotate to center the marker horizontally
+  Close to marker  -> mecanum strafe instead (avoids swinging the
+                      camera and losing the marker from the FOV)
+  Forward speed    -> proportional to remaining distance, scaled
+                      down when the marker is off-center
 
-Marker-loss handling (no wheel encoders on this robot, so blind driving
-is kept short and bounded):
-  - Lost right after being seen large/close -> assume arrival, stop.
-  - Lost while still small/far -> brief (lost_recovery_timeout) blind
-    correction continuing the last known turn/strafe direction, then
-    abort if the marker doesn't reappear.
+State machine:
+  IDLE       -- not armed
+  SEARCHING  -- armed, waiting to see the target marker
+  TRACKING   -- marker visible, driving toward it
+  RECOVERING -- marker lost mid-approach, brief blind correction
+  ARRIVED    -- close enough, stopped
+  FAILED     -- lost marker and recovery timed out
 """
 
 import time
@@ -33,9 +36,11 @@ import rclpy
 from rclpy.node import Node
 from rcl_interfaces.msg import SetParametersResult
 from geometry_msgs.msg import Twist
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Int32
 
 from delivery_robot_msgs.msg import ArucoDetections, ApproachStatus
+
+STATES = ('IDLE', 'SEARCHING', 'TRACKING', 'RECOVERING', 'ARRIVED', 'FAILED')
 
 
 class ArucoApproachNode(Node):
@@ -44,193 +49,204 @@ class ArucoApproachNode(Node):
 
         self.declare_parameter('target_marker_id', 0)
         self.declare_parameter('image_width', 640)
-        self.declare_parameter('image_height', 480)
-        self.declare_parameter('arrival_size_px', 220.0)
-        self.declare_parameter('max_forward_speed', 0.8)
-        self.declare_parameter('max_strafe_speed', 0.8)
-        self.declare_parameter('max_rotate_speed', 0.7)
-        self.declare_parameter('lost_recovery_timeout', 1.5)
-        self.declare_parameter('lost_arrival_size_ratio', 0.85)
-        self.declare_parameter('invert_lateral', False)
-        self.declare_parameter('invert_rotation', False)
+        self.declare_parameter('arrival_size_px', 200.0)
+        self.declare_parameter('forward_power', 0.15)
+        self.declare_parameter('strafe_power', 0.15)
+        self.declare_parameter('rotation_power', 0.12)
+        self.declare_parameter('lost_timeout', 2.0)
+        self.declare_parameter('lost_close_ratio', 0.85)
+        self.declare_parameter('visibility_timeout', 0.5)
         self.declare_parameter('control_rate_hz', 10.0)
 
         self._load_params()
         self.add_on_set_parameters_callback(self._on_param_change)
 
         self.cmd_pub = self.create_publisher(Twist, 'cmd_vel', 10)
-        self.status_pub = self.create_publisher(ApproachStatus, 'aruco_approach/status', 10)
+        self.status_pub = self.create_publisher(
+            ApproachStatus, 'aruco_approach/status', 10)
+
         self.create_subscription(
-            ArucoDetections, 'aruco/detections', self._detections_cb, 10
-        )
-        self.create_subscription(Bool, 'aruco_approach/armed', self._armed_cb, 10)
+            ArucoDetections, 'aruco/detections', self._detections_cb, 10)
+        self.create_subscription(
+            Bool, 'aruco_approach/armed', self._armed_cb, 10)
+        self.create_subscription(
+            Int32, 'aruco_approach/set_target', self._set_target_cb, 10)
 
         self._armed = False
-        self._visible = False
+        self._state = 'IDLE'
         self._last_seen_time = 0.0
         self._last_ex = 0.0
         self._last_size_norm = 0.0
-        self._drive_state = 'IDLE'  # IDLE -> TRACKING -> RECOVERING -> ARRIVED / FAILED
 
         self.create_timer(1.0 / self.control_rate_hz, self._control_step)
 
         self.get_logger().info(
-            f'ArUco approach ready (disarmed): target_id={self.target_marker_id}, '
-            f'arrival_size_px={self.arrival_size_px}'
-        )
+            f'ArUco approach ready (disarmed): '
+            f'target_id={self.target_marker_id}, '
+            f'powers=({self.forward_power}, {self.strafe_power}, '
+            f'{self.rotation_power})')
+
+    # -- Parameter handling --------------------------------------------------
 
     def _load_params(self):
-        # Force int: launch may pass this as a string ("2"), which would make
-        # `int(mid) == self.target_marker_id` always False and the target
-        # would never be matched.
-        self.target_marker_id = int(self.get_parameter('target_marker_id').value)
+        self.target_marker_id = int(
+            self.get_parameter('target_marker_id').value)
         self.image_width = self.get_parameter('image_width').value
-        self.image_height = self.get_parameter('image_height').value
         self.arrival_size_px = self.get_parameter('arrival_size_px').value
-        self.max_forward_speed = self.get_parameter('max_forward_speed').value
-        self.max_strafe_speed = self.get_parameter('max_strafe_speed').value
-        self.max_rotate_speed = self.get_parameter('max_rotate_speed').value
-        self.lost_recovery_timeout = self.get_parameter('lost_recovery_timeout').value
-        self.lost_arrival_size_ratio = self.get_parameter('lost_arrival_size_ratio').value
-        self.invert_lateral = self.get_parameter('invert_lateral').value
-        self.invert_rotation = self.get_parameter('invert_rotation').value
+        self.forward_power = self.get_parameter('forward_power').value
+        self.strafe_power = self.get_parameter('strafe_power').value
+        self.rotation_power = self.get_parameter('rotation_power').value
+        self.lost_timeout = self.get_parameter('lost_timeout').value
+        self.lost_close_ratio = self.get_parameter('lost_close_ratio').value
+        self.visibility_timeout = self.get_parameter('visibility_timeout').value
         self.control_rate_hz = self.get_parameter('control_rate_hz').value
 
     def _on_param_change(self, params):
         for p in params:
-            if p.name == 'target_marker_id' and p.value != self.target_marker_id:
+            if p.name == 'target_marker_id' and int(p.value) != self.target_marker_id:
                 self.get_logger().info(
-                    f'Target marker changed to {p.value}, resetting approach state'
-                )
-                self._drive_state = 'IDLE'
-                self._last_seen_time = 0.0
+                    f'Target changed to {p.value}, resetting state')
+                self._reset_tracking()
         self._load_params()
         return SetParametersResult(successful=True)
 
+    # -- Topic callbacks -----------------------------------------------------
+
     def _armed_cb(self, msg: Bool):
+        newly_armed = bool(msg.data)
+        if newly_armed == self._armed:
+            return
+
         was_armed = self._armed
-        self._armed = bool(msg.data)
-        if self._armed != was_armed:
-            self.get_logger().info('Armed -- approach will drive' if self._armed
-                                    else 'Disarmed -- holding position')
-            self._drive_state = 'IDLE'
+        self._armed = newly_armed
+        if self._armed:
+            self.get_logger().info('Armed')
+            self._state = 'SEARCHING'
+            self._reset_tracking()
+        else:
+            self.get_logger().info('Disarmed')
+            self._state = 'IDLE'
+            if was_armed:
+                self._publish_stop()
+
+    def _set_target_cb(self, msg: Int32):
+        new_id = int(msg.data)
+        if new_id != self.target_marker_id:
+            self.get_logger().info(f'Target set to marker {new_id}')
+            self.target_marker_id = new_id
+            self._reset_tracking()
+            if self._armed:
+                self._state = 'SEARCHING'
 
     def _detections_cb(self, msg: ArucoDetections):
-        """Always update live visibility/size, regardless of armed state,
-        so the UI has fresh distance feedback even before Start is pressed."""
-        target = None
         for i, mid in enumerate(msg.marker_ids):
-            if int(mid) == self.target_marker_id:
-                base = i * 8
-                if base + 7 < len(msg.corners):
-                    target = [
-                        (msg.corners[base], msg.corners[base + 1]),
-                        (msg.corners[base + 2], msg.corners[base + 3]),
-                        (msg.corners[base + 4], msg.corners[base + 5]),
-                        (msg.corners[base + 6], msg.corners[base + 7]),
-                    ]
+            if int(mid) != self.target_marker_id:
+                continue
+            base = i * 8
+            if base + 7 >= len(msg.corners):
                 break
+            corners = [
+                (float(msg.corners[base]),     float(msg.corners[base + 1])),
+                (float(msg.corners[base + 2]), float(msg.corners[base + 3])),
+                (float(msg.corners[base + 4]), float(msg.corners[base + 5])),
+                (float(msg.corners[base + 6]), float(msg.corners[base + 7])),
+            ]
 
-        if target is None:
+            cx = sum(c[0] for c in corners) / 4.0
+            img_cx = self.image_width / 2.0
+            self._last_ex = (cx - img_cx) / img_cx
+            self._last_size_norm = (
+                self._mean_edge_length(corners) / self.arrival_size_px)
+            self._last_seen_time = time.time()
             return
 
-        cx = sum(c[0] for c in target) / 4.0
-        img_cx = self.image_width / 2.0
-
-        self._last_ex = (cx - img_cx) / img_cx
-        self._last_size_norm = self._apparent_size(target) / self.arrival_size_px
-        self._last_seen_time = time.time()
-
-    @staticmethod
-    def _apparent_size(corners):
-        def dist(a, b):
-            return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
-        sides = [dist(corners[i], corners[(i + 1) % 4]) for i in range(4)]
-        return sum(sides) / 4.0
+    # -- Control loop --------------------------------------------------------
 
     def _control_step(self):
-        self._visible = (time.time() - self._last_seen_time) < 0.3
+        visible = (time.time() - self._last_seen_time) < self.visibility_timeout
 
         if not self._armed:
-            self._drive_state = 'IDLE'
-            self._publish_stop()
-            self._publish_status()
+            self._state = 'IDLE'
+            self._publish_status(visible)
             return
 
-        if self._drive_state in ('ARRIVED', 'FAILED'):
-            self._publish_stop()
-            self._publish_status()
+        if self._state in ('ARRIVED', 'FAILED'):
+            self._publish_status(visible)
             return
 
-        if self._visible:
-            self._track_step()
+        if visible:
+            self._step_tracking()
         else:
-            age = time.time() - self._last_seen_time
-            if self._drive_state not in ('TRACKING', 'RECOVERING'):
-                self._publish_stop()  # never seen the target yet -- nothing to do
-            elif self._last_size_norm >= self.lost_arrival_size_ratio:
-                self.get_logger().info('Marker lost at close range -- assuming arrival.')
-                self._drive_state = 'ARRIVED'
-                self._publish_stop()
-            elif age < self.lost_recovery_timeout:
-                self._drive_state = 'RECOVERING'
-                self._recovery_step()
-            else:
-                self.get_logger().warn('Marker lost and not recovered -- aborting approach.')
-                self._drive_state = 'FAILED'
-                self._publish_stop()
+            self._step_not_visible()
 
-        self._publish_status()
+        self._publish_status(visible)
 
-    def _track_step(self):
+    def _step_tracking(self):
         ex = self._last_ex
         size_norm = self._last_size_norm
-        self._drive_state = 'TRACKING'
-
-        self.get_logger().info(
-            f'tracking ex={ex:.2f} size_norm={size_norm:.2f}',
-            throttle_duration_sec=1.0,
-        )
+        self._state = 'TRACKING'
 
         if size_norm >= 1.0:
-            self.get_logger().info('Arrived at target marker.')
-            self._drive_state = 'ARRIVED'
+            self.get_logger().info('Arrived at target marker')
+            self._state = 'ARRIVED'
             self._publish_stop()
             return
 
-        close_factor = max(0.0, min(1.0, size_norm))
-        rot_sign = -1.0 if self.invert_rotation else 1.0
-        lat_sign = -1.0 if self.invert_lateral else 1.0
+        blend = max(0.0, min(1.0, size_norm))
 
-        # Far away -> mostly rotate to center. Close up -> mostly strafe,
-        # so the camera doesn't swing the marker out of frame.
-        az = rot_sign * (-self.max_rotate_speed * ex * (1.0 - close_factor))
-        ly = lat_sign * (-self.max_strafe_speed * ex * close_factor)
-
+        az = -self.rotation_power * ex * (1.0 - blend)
+        ly = -self.strafe_power * ex * blend
         forward_scale = max(0.0, 1.0 - abs(ex))
-        lx = max(0.0, self.max_forward_speed * (1.0 - size_norm) * forward_scale)
+        lx = self.forward_power * (1.0 - size_norm) * forward_scale
 
         self.get_logger().info(
-            f'cmd lx={lx:.2f} ly={ly:.2f} az={az:.2f}',
-            throttle_duration_sec=1.0,
-        )
-        self._publish(lx, ly, az)
+            f'TRACKING ex={ex:.2f} size={size_norm:.2f} '
+            f'-> lx={lx:.3f} ly={ly:.3f} az={az:.3f}',
+            throttle_duration_sec=1.0)
+        self._publish_cmd(lx, ly, az)
 
-    def _recovery_step(self):
-        """Marker dropped out of frame mid-approach. Keep correcting in the
-        direction it was last drifting, but don't push forward blindly."""
-        ex = self._last_ex
-        close_factor = max(0.0, min(1.0, self._last_size_norm))
-        rot_sign = -1.0 if self.invert_rotation else 1.0
-        lat_sign = -1.0 if self.invert_lateral else 1.0
-        direction = 1.0 if ex > 0 else -1.0
+    def _step_not_visible(self):
+        age = time.time() - self._last_seen_time
 
-        az = rot_sign * (-self.max_rotate_speed * 0.5 * direction * (1.0 - close_factor))
-        ly = lat_sign * (-self.max_strafe_speed * 0.5 * direction * close_factor)
+        if self._state not in ('TRACKING', 'RECOVERING'):
+            self._state = 'SEARCHING'
+            self._publish_stop()
+            return
 
-        self._publish(0.0, ly, az)
+        if self._last_size_norm >= self.lost_close_ratio:
+            self.get_logger().info(
+                'Marker lost at close range -- assuming arrived')
+            self._state = 'ARRIVED'
+            self._publish_stop()
+            return
 
-    def _publish(self, lx, ly, az):
+        if age < self.lost_timeout:
+            self._state = 'RECOVERING'
+            direction = 1.0 if self._last_ex > 0 else -1.0
+            blend = max(0.0, min(1.0, self._last_size_norm))
+            az = -self.rotation_power * 0.5 * direction * (1.0 - blend)
+            ly = -self.strafe_power * 0.5 * direction * blend
+            self._publish_cmd(0.0, ly, az)
+        else:
+            self.get_logger().warn('Recovery timed out -- approach failed')
+            self._state = 'FAILED'
+            self._publish_stop()
+
+    # -- Helpers -------------------------------------------------------------
+
+    def _reset_tracking(self):
+        self._last_seen_time = 0.0
+        self._last_ex = 0.0
+        self._last_size_norm = 0.0
+
+    @staticmethod
+    def _mean_edge_length(corners):
+        def dist(a, b):
+            return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
+        return sum(
+            dist(corners[i], corners[(i + 1) % 4]) for i in range(4)) / 4.0
+
+    def _publish_cmd(self, lx, ly, az):
         msg = Twist()
         msg.linear.x = float(lx)
         msg.linear.y = float(ly)
@@ -238,16 +254,16 @@ class ArucoApproachNode(Node):
         self.cmd_pub.publish(msg)
 
     def _publish_stop(self):
-        self._publish(0.0, 0.0, 0.0)
+        self._publish_cmd(0.0, 0.0, 0.0)
 
-    def _publish_status(self):
+    def _publish_status(self, visible):
         msg = ApproachStatus()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.target_marker_id = int(self.target_marker_id)
         msg.armed = bool(self._armed)
-        msg.marker_visible = bool(self._visible)
-        msg.size_norm = float(self._last_size_norm) if self._visible else 0.0
-        msg.state = self._drive_state
+        msg.marker_visible = bool(visible)
+        msg.size_norm = float(self._last_size_norm) if visible else 0.0
+        msg.state = self._state
         self.status_pub.publish(msg)
 
 

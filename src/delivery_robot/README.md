@@ -10,7 +10,7 @@ Indoor autonomous delivery robot built on a Raspberry Pi 5 with ROS2 Jazzy. Uses
 | Camera | Pi Camera Module 3 (IMX708, monocular) |
 | Motor drivers | 2x L298N dual H-bridge boards |
 | Drive | 4x DC motors with mecanum wheels |
-| IMU | MPU9250 via I2C (pending working module) |
+| IMU | MPU6050 via I2C (6-axis: accel + gyro) |
 
 See [HARDWARE.md](HARDWARE.md) for full GPIO pinout, wiring diagrams, and power connections.
 
@@ -20,7 +20,7 @@ See [HARDWARE.md](HARDWARE.md) for full GPIO pinout, wiring diagrams, and power 
 graph LR
   subgraph sensors [Sensors]
     Cam["Pi Camera Module 3"]
-    IMU["MPU9250 IMU"]
+    IMU["MPU6050 IMU"]
   end
 
   subgraph perception [Perception]
@@ -48,7 +48,7 @@ graph LR
 
   Cam --> VSLAM -->|"/visual_odom"| EKF
   Cam --> Aruco -->|"/aruco/pose"| EKF
-  IMU -->|"/imu/data"| EKF
+  IMU -->|"/imu/data_raw"| EKF
   EKF -->|"/odometry/filtered"| Nav2
   EKF -->|"/odometry/filtered"| WebUI
   Nav2 -->|"/cmd_vel"| MotorDrv
@@ -67,6 +67,7 @@ ros2_ws/src/delivery_robot/
   delivery_robot_msgs/       # custom messages (ament_cmake)
   pi_camera_driver/          # rpicam-vid camera node (ament_python)
   motor_driver/              # L298N + mecanum kinematics (ament_python)
+  imu_driver/                # MPU6050 IMU driver (ament_python)
   robot_web_ui/              # web dashboard + WebSocket bridge (ament_python)
   aruco_detector/            # ArUco marker detection + localization (ament_python)
   orb_slam3_ros/             # ORB-SLAM3 monocular wrapper (ament_cmake)
@@ -80,6 +81,7 @@ ros2_ws/src/delivery_robot/
 | `delivery_robot_msgs` | `msg/MotorStatus.msg`, `msg/ArucoDetections.msg` | Motor status + ArUco detection messages |
 | `delivery_robot_bringup` | `launch/bringup.launch.py` | Launches all base nodes with YAML config |
 | `aruco_detector` | `aruco_detector/aruco_detector_node.py` | Detects ArUco markers, publishes pose + pixel detections for EKF and UI |
+| `imu_driver` | `imu_driver/imu_driver_node.py` | MPU6050 I2C driver, publishes `sensor_msgs/Imu` at 50 Hz, startup calibration |
 | `orb_slam3_ros` | `src/orb_slam3_node.cpp` | ORB-SLAM3 monocular VSLAM, publishes odometry + point cloud |
 
 ## ROS2 Topics
@@ -102,6 +104,7 @@ ros2_ws/src/delivery_robot/
 | `/vslam/map_points` | `sensor_msgs/PointCloud2` | orb_slam3_ros | robot_web_ui |
 | `/aruco/pose` | `PoseWithCovarianceStamped` | aruco_detector | EKF |
 | `/aruco/detections` | `ArucoDetections` | aruco_detector | robot_web_ui |
+| `/imu/data_raw` | `sensor_msgs/Imu` | imu_driver | EKF |
 | `/odometry/filtered` | `nav_msgs/Odometry` | EKF | robot_web_ui, (Nav2) |
 
 ## Build
@@ -170,10 +173,11 @@ All config lives in `delivery_robot_bringup/config/`:
 
 | File | Contents |
 |---|---|
-| `motor_pins.yaml` | GPIO pin map, PWM frequency, `min_duty`, `max_speed`, watchdog timeout |
+| `motor_pins.yaml` | GPIO pin map, PWM frequency, `min_duty`, `max_speed`, watchdog timeout, gyro correction PID |
 | `camera.yaml` | Resolution, framerate, JPEG quality, `publish_raw` toggle, calibration file path |
 | `camera_calibration.yaml` | Camera intrinsics (K, D, R, P matrices) |
 | `aruco_markers.yaml` | Marker size, dictionary, known marker world positions |
+| `imu.yaml` | MPU6050 config: I2C bus/address, publish rate, calibration offsets |
 | `ekf.yaml` | robot_localization EKF config: sensor sources, covariances |
 | `orb_slam3_pi5.yaml` | ORB-SLAM3 camera params, feature count, scale levels |
 
@@ -184,6 +188,7 @@ Edit and rebuild `delivery_robot_bringup` to apply changes.
 - **libcamera/PiSP**: ROS2's `LD_LIBRARY_PATH` shadows the system libcamera. The camera node launches `rpicam-vid` in a minimal environment that strips all ROS2 paths. Do not change this without testing.
 - **gpiochip4**: Pi 5 uses `gpiochip4` (RP1) for the 40-pin header, not `gpiochip0`. Set via `gpio_chip` param.
 - **GPIO permissions**: The user must be in the `dialout` group. The launch script uses `sg dialout`.
+- **I2C permissions**: The user must be in the `i2c` group for the IMU. Run `sudo usermod -aG i2c pi` and re-login.
 - **ROS2 fixed-size arrays**: `float32[4]` and `bool[4]` fields must be assigned element-by-element in Python, not via list assignment.
 - **JSON serialization**: ROS2 `float32`/`bool` types are numpy types. Convert with `float()`/`bool()` before passing to `json.dumps`.
 - **OpenCV 4.6 ArUco API**: System OpenCV uses the older `cv2.aruco.detectMarkers()` function. Do NOT use the newer `ArucoDetector` class (4.7+).

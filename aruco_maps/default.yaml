@@ -1,0 +1,15 @@
+marker_size: 0.17
+dictionary: DICT_4X4_50
+anchors:
+- 1
+- 2
+markers:
+  1:
+    x: 0.0
+    y: 0.0
+    z: 0.285
+  2:
+    x: -0.52
+    y: 0.0
+    z: 0.285
+name: Default

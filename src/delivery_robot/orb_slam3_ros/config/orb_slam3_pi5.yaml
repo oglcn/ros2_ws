@@ -8,17 +8,17 @@
 #--------------------------------------------------------------------------------------------
 Camera.type: "PinHole"
 
-# Camera intrinsics (from calibration -- update after running calibrate_camera)
-Camera1.fx: 500.0
-Camera1.fy: 500.0
-Camera1.cx: 320.0
-Camera1.cy: 240.0
+# Camera intrinsics (from calibration 2026-06-26, RMS 0.3117)
+Camera.fx: 970.127
+Camera.fy: 967.951
+Camera.cx: 322.642
+Camera.cy: 184.253
 
-# Distortion parameters (update from calibration)
-Camera1.k1: 0.0
-Camera1.k2: 0.0
-Camera1.p1: 0.0
-Camera1.p2: 0.0
+# Distortion parameters (from calibration)
+Camera.k1: -0.079527
+Camera.k2: 1.688153
+Camera.p1: -0.011446
+Camera.p2: -0.003016
 
 # Camera resolution
 Camera.width: 640
@@ -48,6 +48,16 @@ ORBextractor.iniThFAST: 20
 ORBextractor.minThFAST: 7
 
 #--------------------------------------------------------------------------------------------
-# Viewer Parameters (disabled for headless Pi 5)
+# Viewer Parameters (disabled for headless Pi 5, but values must exist)
 #--------------------------------------------------------------------------------------------
 Viewer.UseViewer: 0
+Viewer.KeyFrameSize: 0.05
+Viewer.KeyFrameLineWidth: 1.0
+Viewer.GraphLineWidth: 0.9
+Viewer.PointSize: 2.0
+Viewer.CameraSize: 0.08
+Viewer.CameraLineWidth: 3.0
+Viewer.ViewpointX: 0.0
+Viewer.ViewpointY: -0.7
+Viewer.ViewpointZ: -1.8
+Viewer.ViewpointF: 500.0

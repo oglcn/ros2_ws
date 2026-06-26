@@ -61,18 +61,23 @@ Build the sensor fusion stack for autonomous positioning.
 - CPU governor set to `performance`
 - ORB-SLAM3 libraries in ldconfig
 
+**IMU Driver (MPU6050):** -- DONE
+- MPU6050 via I2C bus 1 (SDA=GPIO 2, SCL=GPIO 3), address 0x68
+- `imu_driver` package with `imu_driver_node` publishing `sensor_msgs/Imu` to `/imu/data_raw`
+- Startup gyro bias calibration (500 samples, ~1s while stationary)
+- Offline calibration tool: `ros2 run imu_driver calibrate_imu`
+- Configurable: accel/gyro range, DLPF bandwidth, publish rate (50 Hz)
+- Integrated into EKF as `imu0` (yaw rate + linear acceleration)
+- Launched conditionally via `use_imu:=true` (default) in bringup
+
 **Remaining:**
+- [ ] Wire MPU6050 to I2C bus 1 (VCC=3.3V, GND, SDA=Pin 3, SCL=Pin 5)
+- [ ] Verify device detected: `sudo i2cdetect -y 1` (should show 0x68)
+- [ ] Run IMU calibration: `ros2 run imu_driver calibrate_imu`
 - [ ] Run camera calibration with checkerboard (accurate intrinsics)
 - [ ] Test VSLAM tracking with live camera feed
 - [ ] Print and place ArUco markers, measure positions
 - [ ] Tune ORB-SLAM3 parameters based on real-world performance
-- [ ] Add IMU driver when replacement MPU9250 module arrives (current one defective)
-
-**IMU Driver:**
-- MPU9250 via I2C (SDA=GPIO 2, SCL=GPIO 3)
-- Publish `sensor_msgs/Imu` to `/imu/data` + `sensor_msgs/MagneticField` to `/imu/mag`
-- Calibration routine for gyro bias, accelerometer offset, and magnetometer hard/soft iron
-- *Blocked on*: Replacement IMU module (current module defective)
 
 ## Phase 3: Autonomous Navigation -- FUTURE
 

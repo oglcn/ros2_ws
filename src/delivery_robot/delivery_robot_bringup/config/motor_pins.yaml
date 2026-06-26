@@ -3,9 +3,9 @@ motor_driver:
     gpio_chip: 4
     pwm_frequency: 1000
     max_speed: 1.0
-    min_duty: 0.45
+    min_duty: 0.40
     max_duty: 1.0
-    slew_rate: 1000.0
+    slew_rate: 20.0
     watchdog_timeout: 0.5
     front_left:
       en: 23
@@ -23,3 +23,11 @@ motor_driver:
       en: 12
       in1: 6
       in2: 5
+
+    # Heading-hold correction (uses /imu/heading).
+    # Locks heading when driving, corrects proportionally if robot veers.
+    gyro_correction:
+      enabled: true
+      gain: 0.1
+      max_correction: 0.2
+      heading_tolerance: 0.5

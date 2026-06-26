@@ -2,30 +2,27 @@
 # Each marker has an ID and its position (x, y, z) in meters.
 # Orientation is assumed to be facing the camera (flat on wall/surface).
 #
-# Update these values to match your physical marker placements.
-# At minimum, one marker is needed to establish metric scale for VSLAM.
+# Coordinate system:
+#   x-axis: along the surface (left-to-right facing markers)
+#   y-axis: perpendicular to surface (toward robot)
+#   z: height from ground (to marker center)
+#
+# Portable calibration board:
+#   Both markers 17x17cm, bottom edge 20cm from floor
+#   Inner edge spacing: 35cm → center-to-center: 52cm
 
-marker_size: 0.15  # marker side length in meters
+marker_size: 0.17  # marker side length in meters
 dictionary: DICT_4X4_50
+anchors: [1, 2]
 
 markers:
-  # Origin marker -- defines the map coordinate origin
-  0:
-    x: 0.0
-    y: 0.0
-    z: 0.0
-  # Example: marker 1 placed 3m along x-axis
+  # id1 -- origin marker (left side from robot's perspective)
   1:
-    x: 3.0
-    y: 0.0
-    z: 0.0
-  # Example: marker 2 placed at a corner
-  2:
-    x: 3.0
-    y: 2.0
-    z: 0.0
-  # Example: marker 3 placed along y-axis
-  3:
     x: 0.0
-    y: 2.0
-    z: 0.0
+    y: 0.0
+    z: 0.285
+  # id2 -- 52cm to the right of id1
+  2:
+    x: -0.52
+    y: 0.0
+    z: 0.285

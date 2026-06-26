@@ -5,13 +5,18 @@ Subscribes to /cmd_vel (geometry_msgs/Twist) and converts omnidirectional
 velocity commands into individual wheel PWM signals using mecanum inverse
 kinematics.  Publishes /motor_status with per-wheel duty cycles.
 
+When /imu/heading is available, holds a target heading while driving
+straight by applying proportional correction to the omega term.
+
 Uses lgpio for Pi 5 GPIO control.
 """
 
 import lgpio
 import rclpy
 from geometry_msgs.msg import Twist
+from nav_msgs.msg import Odometry
 from rclpy.node import Node
+from std_msgs.msg import Float64
 
 from delivery_robot_msgs.msg import MotorStatus
 
@@ -78,7 +83,7 @@ class MotorDriverNode(Node):
         self.declare_parameter('max_speed', 1.0)
         self.declare_parameter('min_duty', 0.3)
         self.declare_parameter('max_duty', 1.0)
-        self.declare_parameter('slew_rate', 1000.0)  # max duty change per second; large = effectively instant
+        self.declare_parameter('slew_rate', 20.0)
         self.declare_parameter('watchdog_timeout', 0.5)
 
         self.declare_parameter('front_left.en', 12)
@@ -94,6 +99,14 @@ class MotorDriverNode(Node):
         self.declare_parameter('rear_right.in1', 24)
         self.declare_parameter('rear_right.in2', 25)
 
+        self.declare_parameter('gyro_correction.enabled', True)
+        self.declare_parameter('gyro_correction.gain', 0.02)
+        self.declare_parameter('gyro_correction.max_correction', 0.1)
+        self.declare_parameter('gyro_correction.heading_tolerance', 0.5)
+
+        self.declare_parameter('odom_linear_scale', 0.3)
+        self.declare_parameter('odom_angular_scale', 1.5)
+
         # Pi 5 uses gpiochip4 (RP1) for the 40-pin header
         self.declare_parameter('gpio_chip', 4)
         self.gpio_chip_num = self.get_parameter('gpio_chip').value
@@ -104,6 +117,14 @@ class MotorDriverNode(Node):
         self.max_duty = self.get_parameter('max_duty').value
         self.slew_rate = self.get_parameter('slew_rate').value
         self.watchdog_timeout = self.get_parameter('watchdog_timeout').value
+
+        self._gyro_enabled = self.get_parameter('gyro_correction.enabled').value
+        self._gyro_gain = self.get_parameter('gyro_correction.gain').value
+        self._gyro_max = self.get_parameter('gyro_correction.max_correction').value
+        self._heading_tol = self.get_parameter('gyro_correction.heading_tolerance').value
+
+        self._current_heading = 0.0
+        self._target_heading = None
 
         try:
             self.chip = lgpio.gpiochip_open(self.gpio_chip_num)
@@ -120,14 +141,24 @@ class MotorDriverNode(Node):
                 self.motors[name] = Motor(self.chip, en, in1, in2, self.pwm_freq)
                 self.get_logger().info(f'{name}: en={en} in1={in1} in2={in2}')
 
+        self._odom_linear_scale = self.get_parameter('odom_linear_scale').value
+        self._odom_angular_scale = self.get_parameter('odom_angular_scale').value
+
         self.cmd_vel_sub = self.create_subscription(
             Twist, 'cmd_vel', self._cmd_vel_callback, 10
         )
         self.status_pub = self.create_publisher(MotorStatus, 'motor_status', 10)
+        self.odom_pub = self.create_publisher(Odometry, 'wheel_odom', 10)
 
-        # Per-wheel target speeds; the ramp timer eases the applied duty
-        # toward these to avoid the inrush current spike that can brown out
-        # the supply when motors start from a standstill.
+        if self._gyro_enabled:
+            self.create_subscription(
+                Float64, 'imu/heading', self._heading_cb, 10
+            )
+            self.get_logger().info(
+                f'Heading-hold enabled: gain={self._gyro_gain}, '
+                f'max={self._gyro_max}, tolerance={self._heading_tol} deg'
+            )
+
         self._targets = {n: 0.0 for n in
                          ('front_left', 'front_right', 'rear_left', 'rear_right')}
         self._ramp_dt = 0.02
@@ -139,12 +170,37 @@ class MotorDriverNode(Node):
 
         self.get_logger().info('Motor driver ready')
 
+    def _heading_cb(self, msg: Float64):
+        self._current_heading = msg.data
+
     def _cmd_vel_callback(self, msg: Twist):
         self._last_cmd_time = self.get_clock().now()
 
         vx = msg.linear.x * self.max_speed
         vy = msg.linear.y * self.max_speed
         omega = msg.angular.z * self.max_speed
+
+        driving = abs(vx) > 0.01 or abs(vy) > 0.01
+
+        if self._gyro_enabled and driving:
+            if self._target_heading is None:
+                self._target_heading = self._current_heading
+
+            if abs(msg.angular.z) > 0.01:
+                self._target_heading = self._current_heading
+
+            heading_error = self._target_heading - self._current_heading
+            if heading_error > 180.0:
+                heading_error -= 360.0
+            if heading_error < -180.0:
+                heading_error += 360.0
+
+            if abs(heading_error) > self._heading_tol:
+                correction = self._gyro_gain * heading_error
+                correction = max(-self._gyro_max, min(self._gyro_max, correction))
+                omega += correction
+        else:
+            self._target_heading = None
 
         # Mecanum inverse kinematics
         fl = vx - vy - omega
@@ -163,6 +219,18 @@ class MotorDriverNode(Node):
         self._targets['front_right'] = fr
         self._targets['rear_left'] = rl
         self._targets['rear_right'] = rr
+
+        odom = Odometry()
+        odom.header.stamp = self.get_clock().now().to_msg()
+        odom.header.frame_id = 'odom'
+        odom.child_frame_id = 'base_link'
+        odom.twist.twist.linear.x = vx * self._odom_linear_scale
+        odom.twist.twist.linear.y = vy * self._odom_linear_scale
+        odom.twist.twist.angular.z = omega * self._odom_angular_scale
+        odom.twist.covariance[0] = 0.1   # vx
+        odom.twist.covariance[7] = 0.1   # vy
+        odom.twist.covariance[35] = 0.2  # vyaw
+        self.odom_pub.publish(odom)
 
     def _ramp_update(self):
         """Move each wheel's applied duty toward its target by at most
@@ -185,8 +253,11 @@ class MotorDriverNode(Node):
     def _watchdog_check(self):
         elapsed = (self.get_clock().now() - self._last_cmd_time).nanoseconds / 1e9
         if elapsed > self.watchdog_timeout:
+            was_active = any(abs(t) > 0.01 for t in self._targets.values())
             for name in self._targets:
                 self._targets[name] = 0.0
+            if was_active:
+                self._target_heading = None
 
     def _publish_status(self):
         msg = MotorStatus()

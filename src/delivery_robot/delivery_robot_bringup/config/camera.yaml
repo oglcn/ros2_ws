@@ -2,7 +2,7 @@ pi_camera:
   ros__parameters:
     width: 640
     height: 480
-    framerate: 30
+    framerate: 60
     quality: 50
     publish_raw: true
     calibration_file: /home/pi/ros2_ws/src/delivery_robot/delivery_robot_bringup/config/camera_calibration.yaml

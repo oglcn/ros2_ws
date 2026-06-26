@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Siparis Yonetimi</title>
+<style>
+:root {
+  --bg: #0f172a; --surface: #1e293b; --border: #334155;
+  --text: #f1f5f9; --muted: #94a3b8; --accent: #38bdf8;
+  --green: #22c55e; --red: #ef4444; --yellow: #eab308;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg); color: var(--text); min-height: 100vh;
+}
+header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: .75rem 1rem; background: var(--surface); border-bottom: 1px solid var(--border);
+}
+header h1 { font-size: 1.2rem; }
+.conn-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); display: inline-block; margin-right: .4rem; }
+.conn-dot.on { background: var(--green); }
+
+.layout {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+  padding: 1rem; max-width: 1200px; margin: 0 auto;
+}
+@media (max-width: 768px) { .layout { grid-template-columns: 1fr; } }
+
+.panel {
+  background: var(--surface); border-radius: 10px;
+  border: 1px solid var(--border); overflow: hidden;
+}
+.panel-head {
+  font-size: .85rem; font-weight: 700; text-transform: uppercase;
+  color: var(--muted); padding: .6rem .75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Robot status */
+.robot-status {
+  display: flex; gap: 1rem; padding: .6rem .75rem;
+  flex-wrap: wrap; align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+.rs-item { font-size: .85rem; }
+.rs-label { color: var(--muted); margin-right: .3rem; }
+.rs-val { font-weight: 600; }
+.rs-val.idle { color: var(--muted); }
+.rs-val.navigating { color: var(--accent); }
+.rs-val.arrived { color: var(--green); }
+.rs-val.failed { color: var(--red); }
+
+/* Dispatch */
+.dispatch-row {
+  display: flex; gap: .5rem; padding: .6rem .75rem;
+  align-items: center; flex-wrap: wrap;
+}
+.dispatch-row select {
+  flex: 1; min-width: 120px; padding: .4rem .5rem; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  font-size: .85rem;
+}
+.dispatch-btn {
+  padding: .45rem 1rem; border-radius: 6px; border: 1px solid var(--green);
+  background: rgba(34,197,94,.1); color: var(--green); font-weight: 600;
+  font-size: .85rem; cursor: pointer; transition: all .15s;
+}
+.dispatch-btn:hover { background: var(--green); color: #0f172a; }
+.dispatch-btn:disabled { opacity: .4; cursor: default; }
+.home-btn {
+  padding: .45rem 1rem; border-radius: 6px; border: 1px solid var(--accent);
+  background: rgba(56,189,248,.1); color: var(--accent); font-weight: 600;
+  font-size: .85rem; cursor: pointer; transition: all .15s;
+}
+.home-btn:hover { background: var(--accent); color: #0f172a; }
+
+/* Location map */
+.map-wrap {
+  position: relative; width: 100%; padding-top: 75%; background: var(--bg);
+}
+.map-wrap canvas {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: crosshair;
+}
+.loc-toolbar {
+  display: flex; gap: .5rem; padding: .5rem .75rem;
+  border-top: 1px solid var(--border); flex-wrap: wrap; align-items: center;
+}
+.loc-toolbar label { font-size: .8rem; color: var(--muted); }
+.loc-toolbar input, .loc-toolbar select {
+  padding: .3rem .5rem; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); font-size: .8rem;
+}
+.loc-toolbar input { width: 100px; }
+.loc-btn {
+  padding: .35rem .7rem; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--muted); font-size: .8rem;
+  cursor: pointer; font-weight: 600; transition: all .15s;
+}
+.loc-btn.add { border-color: var(--green); color: var(--green); }
+.loc-btn.add:hover { background: var(--green); color: #0f172a; }
+.loc-btn.del { border-color: var(--red); color: var(--red); }
+.loc-btn.del:hover { background: var(--red); color: #0f172a; }
+
+/* Location list */
+.loc-list { max-height: 120px; overflow-y: auto; }
+.loc-item {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .35rem .75rem; font-size: .8rem;
+  border-bottom: 1px solid var(--border);
+}
+.loc-item .loc-name { flex: 1; font-weight: 600; }
+.loc-item .loc-coords { color: var(--muted); font-family: monospace; font-size: .75rem; }
+.loc-item .loc-home-badge {
+  font-size: .65rem; padding: .1rem .4rem; border-radius: 4px;
+  background: rgba(56,189,248,.15); color: var(--accent); font-weight: 700;
+}
+.loc-item .loc-del-btn {
+  background: none; border: none; color: var(--red); cursor: pointer;
+  font-size: 1rem; padding: 0 .3rem; opacity: .6;
+}
+.loc-item .loc-del-btn:hover { opacity: 1; }
+
+/* Orders */
+.orders-panel { grid-column: 1 / -1; }
+.order-list { max-height: 60vh; overflow-y: auto; }
+.order-card {
+  padding: .75rem; border-bottom: 1px solid var(--border);
+  transition: background .15s;
+}
+.order-card:last-child { border-bottom: none; }
+.order-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: .5rem;
+}
+.order-id { font-weight: 700; font-size: .9rem; }
+.order-time { color: var(--muted); font-size: .75rem; }
+.order-badge {
+  padding: .15rem .5rem; border-radius: 4px;
+  font-size: .7rem; font-weight: 700; text-transform: uppercase;
+}
+.order-badge.pending { background: rgba(234,179,8,.15); color: var(--yellow); }
+.order-badge.accepted { background: rgba(34,197,94,.15); color: var(--green); }
+.order-badge.rejected { background: rgba(239,68,68,.15); color: var(--red); }
+
+.order-items-table {
+  width: 100%; font-size: .85rem; border-collapse: collapse; margin-bottom: .5rem;
+}
+.order-items-table td { padding: .2rem .4rem; }
+.order-items-table .oq { text-align: center; color: var(--muted); width: 30px; }
+.order-items-table .op { text-align: right; color: var(--muted); }
+.order-total-line {
+  text-align: right; font-weight: 700; font-size: .9rem;
+  color: var(--accent); margin-bottom: .5rem;
+}
+.order-actions { display: flex; gap: .5rem; justify-content: flex-end; }
+.order-act-btn {
+  padding: .35rem .8rem; border-radius: 6px; border: 1px solid;
+  font-size: .8rem; font-weight: 600; cursor: pointer; transition: all .15s;
+}
+.order-act-btn.accept { border-color: var(--green); color: var(--green); background: rgba(34,197,94,.1); }
+.order-act-btn.accept:hover { background: var(--green); color: #0f172a; }
+.order-act-btn.reject { border-color: var(--red); color: var(--red); background: rgba(239,68,68,.1); }
+.order-act-btn.reject:hover { background: var(--red); color: #0f172a; }
+
+.no-orders {
+  padding: 2rem; text-align: center; color: var(--muted); font-size: .9rem;
+}
+
+/* Order count in panel head */
+.order-count-badge {
+  display: inline-block; min-width: 18px; height: 18px; line-height: 18px;
+  text-align: center; border-radius: 9px; font-size: .7rem; font-weight: 700;
+  background: var(--red); color: #fff; margin-left: .5rem; padding: 0 5px;
+}
+.order-count-badge.zero { display: none; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Siparis Yonetimi</h1>
+  <div>
+    <span class="conn-dot" id="ws-dot"></span>
+    <span id="ws-label" style="font-size:.8rem; color:var(--muted);">Baglaniyor...</span>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- Dispatch & Robot Status -->
+  <div class="panel">
+    <div class="panel-head">Robot Kontrol</div>
+    <div class="robot-status">
+      <div class="rs-item"><span class="rs-label">Durum:</span><span class="rs-val idle" id="rs-state">IDLE</span></div>
+      <div class="rs-item"><span class="rs-label">Mesafe:</span><span class="rs-val" id="rs-dist">--</span></div>
+      <div class="rs-item"><span class="rs-label">Konum:</span><span class="rs-val" id="rs-pos">--</span></div>
+    </div>
+    <div class="dispatch-row">
+      <select id="dispatch-select"><option value="">-- Masa Sec --</option></select>
+      <button class="dispatch-btn" id="dispatch-btn" disabled>Gonder</button>
+      <button class="home-btn" id="home-btn">Eve Don</button>
+    </div>
+  </div>
+
+  <!-- Location Management -->
+  <div class="panel">
+    <div class="panel-head">Konum Yonetimi</div>
+    <div class="map-wrap">
+      <canvas id="loc-map"></canvas>
+    </div>
+    <div class="loc-toolbar">
+      <input type="text" id="loc-name" placeholder="Konum adi (orn: Masa 3)">
+      <button class="loc-btn add" id="loc-add-table-btn">+ Masa Ekle</button>
+      <button class="loc-btn" id="loc-set-home-btn" style="border-color:var(--accent);color:var(--accent);">&#8962; Ev Belirle</button>
+      <button class="loc-btn del" id="loc-cancel-btn" style="display:none;">Iptal</button>
+    </div>
+    <div class="loc-list" id="loc-list"></div>
+  </div>
+
+  <!-- Orders -->
+  <div class="panel orders-panel">
+    <div class="panel-head">
+      Siparisler <span class="order-count-badge zero" id="order-count">0</span>
+    </div>
+    <div class="order-list" id="order-list">
+      <div class="no-orders" id="no-orders">Henuz siparis yok</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  let ws = null;
+  let locations = {};
+  let markers = {};
+  let orders = [];
+  let robotPos = { x: 0, y: 0, yaw: 0 };
+  let deliveryState = 'IDLE';
+  let deliveryDist = 0;
+  let pendingCount = 0;
+
+  const locMap = document.getElementById('loc-map');
+  const locCtx = locMap.getContext('2d');
+
+  // --- Audio notification ---
+  let audioCtx = null;
+  function beep() {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.frequency.value = 800; osc.type = 'sine';
+      gain.gain.value = 0.3;
+      osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+      setTimeout(() => {
+        const osc2 = audioCtx.createOscillator();
+        const gain2 = audioCtx.createGain();
+        osc2.connect(gain2); gain2.connect(audioCtx.destination);
+        osc2.frequency.value = 1000; osc2.type = 'sine';
+        gain2.gain.value = 0.3;
+        osc2.start(); osc2.stop(audioCtx.currentTime + 0.3);
+      }, 250);
+    } catch(e) {}
+  }
+
+  // --- WebSocket ---
+  function connectWS() {
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(proto + '//' + location.host + '/ws');
+
+    ws.onopen = () => {
+      document.getElementById('ws-dot').classList.add('on');
+      document.getElementById('ws-label').textContent = 'Bagli';
+      loadInitialData();
+    };
+
+    ws.onclose = () => {
+      document.getElementById('ws-dot').classList.remove('on');
+      document.getElementById('ws-label').textContent = 'Baglanti kesildi';
+      setTimeout(connectWS, 2000);
+    };
+
+    ws.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+
+        if (data.delivery) {
+          deliveryState = data.delivery.state || 'IDLE';
+          deliveryDist = data.delivery.distance_to_waypoint || 0;
+          updateRobotStatus();
+        }
+        if (data.localization && data.localization.position) {
+          robotPos = data.localization.position;
+          updateRobotStatus();
+          drawMap();
+        }
+        if (data.new_order) {
+          orders.unshift(data.new_order);
+          renderOrders();
+          beep();
+        }
+        if (data.order_update) {
+          const o = orders.find(x => x.id === data.order_update.id);
+          if (o) { o.status = data.order_update.status; renderOrders(); }
+        }
+        if (data.locations_update) {
+          locations = data.locations_update;
+          populateDispatch();
+          renderLocations();
+          drawMap();
+        }
+      } catch(err) {}
+    };
+  }
+  connectWS();
+
+  function wsSend(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
+
+  // --- Initial data load ---
+  async function loadInitialData() {
+    try {
+      const [ordersResp, locResp, markersResp] = await Promise.all([
+        fetch('/api/orders'),
+        fetch('/api/locations'),
+        fetch('/api/markers'),
+      ]);
+      if (ordersResp.ok) { orders = await ordersResp.json(); renderOrders(); }
+      if (locResp.ok) { locations = await locResp.json(); populateDispatch(); renderLocations(); drawMap(); }
+      if (markersResp.ok) {
+        const ml = await markersResp.json();
+        markers = {};
+        for (const m of ml) markers[m.id] = { x: m.x, y: m.y };
+        drawMap();
+      }
+    } catch(err) { console.error('Load error:', err); }
+  }
+
+  // --- Robot status ---
+  function updateRobotStatus() {
+    const stateEl = document.getElementById('rs-state');
+    stateEl.textContent = deliveryState;
+    stateEl.className = 'rs-val ' + deliveryState.toLowerCase();
+    document.getElementById('rs-dist').textContent = deliveryDist.toFixed(2) + ' m';
+    document.getElementById('rs-pos').textContent =
+      '(' + robotPos.x.toFixed(2) + ', ' + robotPos.y.toFixed(2) + ')';
+  }
+
+  // --- Dispatch ---
+  function populateDispatch() {
+    const sel = document.getElementById('dispatch-select');
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">-- Masa Sec --</option>';
+    for (const [id, loc] of Object.entries(locations)) {
+      if (loc.is_home) continue;
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = loc.name || id;
+      sel.appendChild(opt);
+    }
+    if (cur) sel.value = cur;
+    document.getElementById('dispatch-btn').disabled = !sel.value;
+  }
+
+  document.getElementById('dispatch-select').addEventListener('change', function() {
+    document.getElementById('dispatch-btn').disabled = !this.value;
+  });
+
+  document.getElementById('dispatch-btn').addEventListener('click', () => {
+    const locId = document.getElementById('dispatch-select').value;
+    if (locId) wsSend({ dispatch: { location_id: locId } });
+  });
+
+  document.getElementById('home-btn').addEventListener('click', () => {
+    wsSend({ dispatch: { location_id: '__home__' } });
+  });
+
+  // --- Location management ---
+  let addMode = null; // null | 'table' | 'home'
+
+  function renderLocations() {
+    const list = document.getElementById('loc-list');
+    list.innerHTML = '';
+    for (const [id, loc] of Object.entries(locations)) {
+      const div = document.createElement('div');
+      div.className = 'loc-item';
+      div.innerHTML =
+        '<span class="loc-name">' + (loc.name || id) + '</span>' +
+        (loc.is_home ? '<span class="loc-home-badge">EV</span>' : '') +
+        '<span class="loc-coords">(' + (loc.x||0).toFixed(2) + ', ' + (loc.y||0).toFixed(2) + ')</span>' +
+        '<button class="loc-del-btn" data-id="' + id + '">&times;</button>';
+      list.appendChild(div);
+    }
+    list.querySelectorAll('.loc-del-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        wsSend({ delete_location: { id: btn.dataset.id } });
+      });
+    });
+  }
+
+  const locNameInput = document.getElementById('loc-name');
+  const addTableBtn = document.getElementById('loc-add-table-btn');
+  const setHomeBtn = document.getElementById('loc-set-home-btn');
+  const cancelBtn = document.getElementById('loc-cancel-btn');
+
+  function exitAddMode() {
+    addMode = null;
+    addTableBtn.style.display = '';
+    setHomeBtn.style.display = '';
+    cancelBtn.style.display = 'none';
+    locNameInput.style.borderColor = '';
+    drawMap();
+  }
+
+  function enterAddMode(mode) {
+    addMode = mode;
+    addTableBtn.style.display = 'none';
+    setHomeBtn.style.display = 'none';
+    cancelBtn.style.display = '';
+    drawMap();
+  }
+
+  addTableBtn.addEventListener('click', () => {
+    const name = locNameInput.value.trim();
+    if (!name) {
+      locNameInput.focus();
+      locNameInput.style.borderColor = 'var(--red)';
+      locNameInput.placeholder = 'Once bir isim girin!';
+      return;
+    }
+    locNameInput.style.borderColor = '';
+    locNameInput.placeholder = 'Konum adi (orn: Masa 3)';
+    enterAddMode('table');
+  });
+
+  setHomeBtn.addEventListener('click', () => {
+    enterAddMode('home');
+  });
+
+  cancelBtn.addEventListener('click', exitAddMode);
+
+  locNameInput.addEventListener('input', () => {
+    locNameInput.style.borderColor = '';
+    locNameInput.placeholder = 'Konum adi (orn: Masa 3)';
+  });
+
+  locMap.addEventListener('click', (e) => {
+    if (!addMode) return;
+
+    const rect = locMap.getBoundingClientRect();
+    const cssX = e.clientX - rect.left;
+    const cssY = e.clientY - rect.top;
+    const coords = screenToMap(cssX, cssY);
+    if (!coords) return;
+
+    if (addMode === 'table') {
+      const name = locNameInput.value.trim();
+      if (!name) { locNameInput.focus(); return; }
+      const id = name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      wsSend({ save_location: { id, name, x: coords.x, y: coords.y, is_home: false } });
+      locNameInput.value = '';
+    } else if (addMode === 'home') {
+      wsSend({ save_location: { id: 'home', name: 'Ev', x: coords.x, y: coords.y, is_home: true } });
+    }
+
+    exitAddMode();
+  });
+
+  // --- 2D Map drawing ---
+  let cssW = 300, cssH = 225;
+  let mapVars = { minX: -1, maxX: 5, minY: -1, maxY: 5, pad: 30, rangeX: 6, rangeY: 6 };
+
+  function computeMapBounds() {
+    let allX = [0], allY = [0];
+    for (const loc of Object.values(locations)) {
+      allX.push(loc.x || 0); allY.push(loc.y || 0);
+    }
+    for (const m of Object.values(markers)) {
+      allX.push(m.x || 0); allY.push(m.y || 0);
+    }
+    allX.push(robotPos.x); allY.push(robotPos.y);
+
+    const margin = 1.5;
+    mapVars.minX = Math.min(...allX) - margin;
+    mapVars.maxX = Math.max(...allX) + margin;
+    mapVars.minY = Math.min(...allY) - margin;
+    mapVars.maxY = Math.max(...allY) + margin;
+    mapVars.rangeX = (mapVars.maxX - mapVars.minX) || 1;
+    mapVars.rangeY = (mapVars.maxY - mapVars.minY) || 1;
+  }
+
+  function mapToScreen(mx, my) {
+    const p = mapVars.pad;
+    const uw = cssW - 2 * p, uh = cssH - 2 * p;
+    return {
+      x: p + ((mx - mapVars.minX) / mapVars.rangeX) * uw,
+      y: cssH - p - ((my - mapVars.minY) / mapVars.rangeY) * uh,
+    };
+  }
+
+  function screenToMap(cssPx, cssPy) {
+    const p = mapVars.pad;
+    const uw = cssW - 2 * p, uh = cssH - 2 * p;
+    return {
+      x: Math.round((mapVars.minX + ((cssPx - p) / uw) * mapVars.rangeX) * 100) / 100,
+      y: Math.round((mapVars.minY + ((cssH - cssPy - p) / uh) * mapVars.rangeY) * 100) / 100,
+    };
+  }
+
+  function drawMap() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = locMap.parentElement.getBoundingClientRect();
+    cssW = rect.width;
+    cssH = rect.height;
+    locMap.width = cssW * dpr;
+    locMap.height = cssH * dpr;
+    locCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    computeMapBounds();
+    locCtx.clearRect(0, 0, cssW, cssH);
+
+    // Background
+    locCtx.fillStyle = '#0f172a';
+    locCtx.fillRect(0, 0, cssW, cssH);
+
+    // Grid lines
+    locCtx.strokeStyle = '#1e293b';
+    locCtx.lineWidth = 0.5;
+    const gridStep = Math.max(0.5, Math.pow(10, Math.floor(Math.log10(Math.max(mapVars.rangeX, mapVars.rangeY) / 4))));
+    locCtx.font = '9px monospace';
+    locCtx.fillStyle = '#334155';
+    for (let gx = Math.ceil(mapVars.minX / gridStep) * gridStep; gx <= mapVars.maxX; gx += gridStep) {
+      const s = mapToScreen(gx, 0);
+      locCtx.beginPath(); locCtx.moveTo(s.x, 0); locCtx.lineTo(s.x, cssH); locCtx.stroke();
+      locCtx.fillText(gx.toFixed(1), s.x + 2, cssH - 3);
+    }
+    for (let gy = Math.ceil(mapVars.minY / gridStep) * gridStep; gy <= mapVars.maxY; gy += gridStep) {
+      const s = mapToScreen(0, gy);
+      locCtx.beginPath(); locCtx.moveTo(0, s.y); locCtx.lineTo(cssW, s.y); locCtx.stroke();
+      locCtx.fillText(gy.toFixed(1), 3, s.y - 3);
+    }
+
+    // Origin crosshair
+    const origin = mapToScreen(0, 0);
+    locCtx.strokeStyle = '#475569';
+    locCtx.lineWidth = 1;
+    locCtx.setLineDash([4, 4]);
+    locCtx.beginPath(); locCtx.moveTo(origin.x, 0); locCtx.lineTo(origin.x, cssH); locCtx.stroke();
+    locCtx.beginPath(); locCtx.moveTo(0, origin.y); locCtx.lineTo(cssW, origin.y); locCtx.stroke();
+    locCtx.setLineDash([]);
+
+    // ArUco markers as labeled diamonds
+    for (const [id, m] of Object.entries(markers)) {
+      const s = mapToScreen(m.x, m.y);
+      locCtx.save();
+      locCtx.translate(s.x, s.y);
+      locCtx.rotate(Math.PI / 4);
+      locCtx.fillStyle = '#64748b';
+      locCtx.fillRect(-5, -5, 10, 10);
+      locCtx.strokeStyle = '#94a3b8';
+      locCtx.lineWidth = 1;
+      locCtx.strokeRect(-5, -5, 10, 10);
+      locCtx.restore();
+      locCtx.fillStyle = '#94a3b8';
+      locCtx.font = 'bold 10px monospace';
+      locCtx.textAlign = 'center';
+      locCtx.fillText('M' + id, s.x, s.y - 10);
+      locCtx.textAlign = 'left';
+    }
+
+    // Named locations (tables/home)
+    for (const [id, loc] of Object.entries(locations)) {
+      const s = mapToScreen(loc.x || 0, loc.y || 0);
+      const isHome = loc.is_home;
+
+      if (isHome) {
+        // House icon for home
+        locCtx.fillStyle = '#38bdf8';
+        locCtx.strokeStyle = '#0ea5e9';
+        locCtx.lineWidth = 1.5;
+        locCtx.beginPath();
+        locCtx.moveTo(s.x, s.y - 12);
+        locCtx.lineTo(s.x - 10, s.y);
+        locCtx.lineTo(s.x - 6, s.y);
+        locCtx.lineTo(s.x - 6, s.y + 8);
+        locCtx.lineTo(s.x + 6, s.y + 8);
+        locCtx.lineTo(s.x + 6, s.y);
+        locCtx.lineTo(s.x + 10, s.y);
+        locCtx.closePath();
+        locCtx.fill();
+        locCtx.stroke();
+      } else {
+        // Filled square for tables
+        locCtx.fillStyle = '#22c55e';
+        locCtx.strokeStyle = '#16a34a';
+        locCtx.lineWidth = 1.5;
+        locCtx.fillRect(s.x - 7, s.y - 7, 14, 14);
+        locCtx.strokeRect(s.x - 7, s.y - 7, 14, 14);
+      }
+
+      // Label above icon
+      locCtx.fillStyle = '#f1f5f9';
+      locCtx.font = 'bold 11px sans-serif';
+      locCtx.textAlign = 'center';
+      locCtx.fillText(loc.name || id, s.x, s.y - 16);
+      // Coordinates below icon
+      locCtx.fillStyle = '#64748b';
+      locCtx.font = '9px monospace';
+      locCtx.fillText('(' + (loc.x||0).toFixed(1) + ',' + (loc.y||0).toFixed(1) + ')', s.x, s.y + 20);
+      locCtx.textAlign = 'left';
+    }
+
+    // Robot position as yellow triangle
+    const rp = mapToScreen(robotPos.x, robotPos.y);
+    const yawRad = (robotPos.yaw || 0) * Math.PI / 180;
+    locCtx.save();
+    locCtx.translate(rp.x, rp.y);
+    locCtx.rotate(-yawRad);
+    locCtx.beginPath();
+    locCtx.moveTo(10, 0);
+    locCtx.lineTo(-6, -6);
+    locCtx.lineTo(-6, 6);
+    locCtx.closePath();
+    locCtx.fillStyle = '#eab308';
+    locCtx.fill();
+    locCtx.strokeStyle = '#ca8a04';
+    locCtx.lineWidth = 1;
+    locCtx.stroke();
+    locCtx.restore();
+
+    // Placement mode overlay
+    if (addMode) {
+      const overlayColor = addMode === 'home' ? 'rgba(56,189,248,0.12)' : 'rgba(34,197,94,0.12)';
+      const textColor = addMode === 'home' ? '#38bdf8' : '#22c55e';
+      const hint = addMode === 'home'
+        ? 'Ev noktasini belirlemek icin haritaya tiklayin'
+        : 'Masa konumunu belirlemek icin haritaya tiklayin';
+      locCtx.fillStyle = overlayColor;
+      locCtx.fillRect(0, 0, cssW, cssH);
+      locCtx.fillStyle = textColor;
+      locCtx.font = 'bold 13px sans-serif';
+      locCtx.textAlign = 'center';
+      locCtx.fillText(hint, cssW / 2, 20);
+      locCtx.textAlign = 'left';
+    }
+
+    // Legend
+    const lx = 8, ly = cssH - 50;
+    locCtx.font = '9px sans-serif';
+    locCtx.fillStyle = '#64748b';  locCtx.fillRect(lx, ly, 8, 8);
+    locCtx.fillStyle = '#94a3b8'; locCtx.fillText('ArUco', lx + 12, ly + 8);
+    locCtx.fillStyle = '#22c55e'; locCtx.fillRect(lx, ly + 14, 8, 8);
+    locCtx.fillStyle = '#94a3b8'; locCtx.fillText('Masa', lx + 12, ly + 22);
+    locCtx.fillStyle = '#38bdf8'; locCtx.fillRect(lx, ly + 28, 8, 8);
+    locCtx.fillStyle = '#94a3b8'; locCtx.fillText('Ev', lx + 12, ly + 36);
+  }
+
+  // --- Orders ---
+  function renderOrders() {
+    const list = document.getElementById('order-list');
+    const noOrders = document.getElementById('no-orders');
+
+    if (orders.length === 0) {
+      noOrders.style.display = '';
+      list.querySelectorAll('.order-card').forEach(c => c.remove());
+      updateOrderCount();
+      return;
+    }
+    noOrders.style.display = 'none';
+
+    list.querySelectorAll('.order-card').forEach(c => c.remove());
+
+    for (const order of orders) {
+      const card = document.createElement('div');
+      card.className = 'order-card';
+      card.dataset.id = order.id;
+
+      let statusClass = order.status || 'pending';
+      let statusLabel = statusClass === 'pending' ? 'Beklemede' :
+                        statusClass === 'accepted' ? 'Kabul Edildi' : 'Reddedildi';
+
+      let itemsHtml = '';
+      for (const it of (order.items || [])) {
+        const lp = (it.qty * it.price).toFixed(0);
+        itemsHtml += '<tr><td>' + it.name + '</td><td class="oq">' + it.qty + '</td><td class="op">' + lp + ' TL</td></tr>';
+      }
+
+      const time = order.timestamp ? new Date(order.timestamp).toLocaleTimeString('tr-TR') : '';
+
+      card.innerHTML =
+        '<div class="order-header">' +
+          '<span class="order-id">Siparis #' + order.id + '</span>' +
+          '<span class="order-time">' + time + '</span>' +
+          '<span class="order-badge ' + statusClass + '">' + statusLabel + '</span>' +
+        '</div>' +
+        '<table class="order-items-table">' + itemsHtml + '</table>' +
+        '<div class="order-total-line">' + (order.total || 0).toFixed(0) + ' TL</div>' +
+        (statusClass === 'pending' ?
+          '<div class="order-actions">' +
+            '<button class="order-act-btn reject" data-id="' + order.id + '">Reddet</button>' +
+            '<button class="order-act-btn accept" data-id="' + order.id + '">Kabul Et</button>' +
+          '</div>' : '');
+
+      list.appendChild(card);
+    }
+
+    list.querySelectorAll('.order-act-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const action = btn.classList.contains('accept') ? 'accept' : 'reject';
+        wsSend({ order_action: { id: parseInt(btn.dataset.id), action } });
+      });
+    });
+
+    updateOrderCount();
+  }
+
+  function updateOrderCount() {
+    pendingCount = orders.filter(o => o.status === 'pending').length;
+    const badge = document.getElementById('order-count');
+    badge.textContent = pendingCount;
+    badge.classList.toggle('zero', pendingCount === 0);
+  }
+
+  // Resize map on window resize
+  window.addEventListener('resize', drawMap);
+  setTimeout(drawMap, 100);
+
+})();
+</script>
+</body>
+</html>

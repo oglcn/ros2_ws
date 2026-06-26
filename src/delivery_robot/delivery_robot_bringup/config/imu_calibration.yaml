@@ -1,0 +1,13 @@
+# MPU6050 calibration offsets
+# Generated: 2026-06-26 02:19:54
+# Samples: 2000
+# Gravity measured: 10.7005 m/s²
+
+imu_driver:
+  ros__parameters:
+    accel_offset_x: 0.4794185317321763
+    accel_offset_y: -0.46007817072143786
+    accel_offset_z: 0.873167739660655
+    gyro_offset_x: 0.03882138519835815
+    gyro_offset_y: 0.035560550584421965
+    gyro_offset_z: 0.0021722687625298815

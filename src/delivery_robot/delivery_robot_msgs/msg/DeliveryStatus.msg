@@ -1,0 +1,8 @@
+std_msgs/Header header
+string state
+uint8 target_marker_id
+uint8 current_waypoint_index
+uint8 total_waypoints
+float32 distance_to_waypoint
+float32 heading_error
+string message

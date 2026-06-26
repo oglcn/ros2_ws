@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Siparis Ver</title>
+<style>
+:root {
+  --bg: #0f172a; --surface: #1e293b; --border: #334155;
+  --text: #f1f5f9; --muted: #94a3b8; --accent: #38bdf8;
+  --green: #22c55e; --red: #ef4444; --yellow: #eab308;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg); color: var(--text);
+  min-height: 100vh; display: flex; flex-direction: column;
+  overflow: hidden; user-select: none; -webkit-user-select: none;
+}
+
+.screen { display:none; flex-direction:column; align-items:center; justify-content:center; flex:1; padding:2rem; }
+.screen.active { display:flex; }
+
+/* Welcome */
+#welcome-screen { gap: 2rem; }
+#welcome-screen h1 { font-size: 2.5rem; text-align: center; }
+#welcome-screen p { color: var(--muted); font-size: 1.2rem; text-align: center; }
+.big-btn {
+  padding: 1.5rem 3rem; font-size: 1.5rem; font-weight: 700;
+  border: 2px solid var(--accent); border-radius: 16px;
+  background: rgba(56,189,248,.1); color: var(--accent);
+  cursor: pointer; transition: all .2s;
+}
+.big-btn:hover { background: var(--accent); color: #0f172a; }
+.big-btn:disabled { opacity:.4; cursor:default; }
+
+/* Not ready */
+#notready-screen { gap: 1.5rem; }
+#notready-screen h2 { font-size: 2rem; color: var(--yellow); text-align: center; }
+#notready-screen p { color: var(--muted); font-size: 1.1rem; text-align: center; }
+.spinner {
+  width: 48px; height: 48px; border: 4px solid var(--border);
+  border-top-color: var(--yellow); border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Listening */
+#listen-screen { gap: 2rem; }
+.mic-icon {
+  width: 100px; height: 100px; border-radius: 50%;
+  background: rgba(239,68,68,.15); border: 3px solid var(--red);
+  display: flex; align-items: center; justify-content: center;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100% { transform:scale(1); } 50% { transform:scale(1.08); } }
+.mic-icon svg { width: 48px; height: 48px; fill: var(--red); }
+#transcript-box {
+  width: 100%; max-width: 500px; min-height: 60px;
+  padding: 1rem; border-radius: 12px;
+  background: var(--surface); border: 1px solid var(--border);
+  font-size: 1.1rem; text-align: center; color: var(--text);
+}
+#transcript-hint { color: var(--muted); font-size: .9rem; }
+
+/* Review */
+#review-screen { gap: 1.5rem; align-items: stretch; max-width: 500px; width: 100%; margin: 0 auto; }
+#review-screen h2 { text-align: center; font-size: 1.5rem; }
+.order-table {
+  width: 100%; border-collapse: collapse;
+  background: var(--surface); border-radius: 12px; overflow: hidden;
+}
+.order-table th, .order-table td {
+  padding: .75rem 1rem; text-align: left; border-bottom: 1px solid var(--border);
+}
+.order-table th { color: var(--muted); font-size: .8rem; text-transform: uppercase; }
+.order-table td { font-size: 1rem; }
+.order-table .qty { text-align: center; width: 50px; }
+.order-table .price { text-align: right; width: 80px; }
+.order-total {
+  text-align: right; font-size: 1.3rem; font-weight: 700;
+  padding: .5rem 1rem; color: var(--accent);
+}
+.review-btns { display: flex; gap: 1rem; justify-content: center; }
+.review-btn {
+  flex: 1; padding: 1rem; font-size: 1.1rem; font-weight: 700;
+  border: 2px solid; border-radius: 12px; cursor: pointer; transition: all .2s;
+}
+.review-btn.confirm { border-color: var(--green); color: var(--green); background: rgba(34,197,94,.1); }
+.review-btn.confirm:hover { background: var(--green); color: #0f172a; }
+.review-btn.retry { border-color: var(--yellow); color: var(--yellow); background: rgba(234,179,8,.1); }
+.review-btn.retry:hover { background: var(--yellow); color: #0f172a; }
+.review-btn.cancel { border-color: var(--red); color: var(--red); background: rgba(239,68,68,.1); }
+.review-btn.cancel:hover { background: var(--red); color: #0f172a; }
+
+/* Manual fallback */
+#manual-screen { gap: 1rem; align-items: stretch; max-width: 500px; width: 100%; margin: 0 auto; }
+#manual-screen h2 { text-align: center; font-size: 1.4rem; }
+.menu-category { margin-bottom: .5rem; }
+.menu-cat-name { font-size: .85rem; color: var(--muted); text-transform: uppercase; padding: .5rem 0; }
+.menu-item-row {
+  display: flex; align-items: center; gap: .75rem;
+  padding: .6rem .75rem; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 10px; margin-bottom: .4rem;
+}
+.menu-item-name { flex: 1; font-size: 1rem; }
+.menu-item-price { color: var(--muted); font-size: .9rem; min-width: 50px; text-align: right; }
+.qty-ctrl { display: flex; align-items: center; gap: .4rem; }
+.qty-btn {
+  width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  font-size: 1.2rem; font-weight: 700; cursor: pointer; display: flex;
+  align-items: center; justify-content: center; transition: all .15s;
+}
+.qty-btn:hover { background: var(--accent); color: #0f172a; border-color: var(--accent); }
+.qty-val { min-width: 24px; text-align: center; font-weight: 600; font-size: 1rem; }
+.manual-bottom {
+  display: flex; gap: 1rem; padding-top: .5rem;
+  border-top: 1px solid var(--border); margin-top: .5rem;
+}
+.manual-total { flex: 1; font-size: 1.2rem; font-weight: 700; color: var(--accent); display: flex; align-items: center; }
+.manual-submit {
+  padding: .8rem 1.5rem; font-size: 1rem; font-weight: 700;
+  border: 2px solid var(--green); border-radius: 10px;
+  background: rgba(34,197,94,.1); color: var(--green); cursor: pointer;
+}
+.manual-submit:hover { background: var(--green); color: #0f172a; }
+.manual-submit:disabled { opacity: .4; cursor: default; }
+.manual-cancel {
+  padding: .8rem 1rem; font-size: 1rem; font-weight: 600;
+  border: 1px solid var(--border); border-radius: 10px;
+  background: none; color: var(--muted); cursor: pointer;
+}
+
+/* Thanks */
+#thanks-screen { gap: 1.5rem; }
+#thanks-screen h1 { font-size: 2.5rem; color: var(--green); }
+#thanks-screen p { font-size: 1.2rem; color: var(--muted); }
+.countdown {
+  font-size: 3rem; font-weight: 700; color: var(--accent);
+  width: 80px; height: 80px; border-radius: 50%;
+  border: 3px solid var(--accent); display: flex;
+  align-items: center; justify-content: center;
+}
+
+/* Error */
+#error-screen { gap: 1.5rem; }
+#error-screen h2 { color: var(--red); font-size: 1.5rem; text-align: center; }
+#error-msg { color: var(--muted); text-align: center; }
+</style>
+</head>
+<body>
+
+<!-- Not Ready -->
+<div class="screen" id="notready-screen">
+  <div class="spinner"></div>
+  <h2>Robot Hazir Degil</h2>
+  <p>Lutfen bekleyiniz...</p>
+</div>
+
+<!-- Welcome -->
+<div class="screen" id="welcome-screen">
+  <h1>Hosgeldiniz!</h1>
+  <p>Siparis vermek icin asagidaki butona dokunun</p>
+  <button class="big-btn" id="start-btn">Siparis Ver</button>
+  <button class="big-btn" id="manual-btn" style="font-size:1rem; padding:1rem 2rem; border-color:var(--muted); color:var(--muted); background:none;">
+    Menuyu Goruntule
+  </button>
+</div>
+
+<!-- Listening -->
+<div class="screen" id="listen-screen">
+  <div class="mic-icon">
+    <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+  </div>
+  <h2>Dinliyorum...</h2>
+  <div id="transcript-box"></div>
+  <p id="transcript-hint">Siparisinizi soyleyin, ornegin: "Iki cay ve bir sandvic"</p>
+  <button class="big-btn" id="stop-listen-btn" style="font-size:1rem; padding:.8rem 1.5rem; border-color:var(--muted); color:var(--muted); background:none;">Iptal</button>
+</div>
+
+<!-- Review -->
+<div class="screen" id="review-screen">
+  <h2>Siparisiniz</h2>
+  <table class="order-table">
+    <thead><tr><th>Urun</th><th class="qty">Adet</th><th class="price">Fiyat</th></tr></thead>
+    <tbody id="order-items"></tbody>
+  </table>
+  <div class="order-total" id="order-total"></div>
+  <div class="review-btns">
+    <button class="review-btn cancel" id="review-cancel-btn">Iptal</button>
+    <button class="review-btn retry" id="review-retry-btn">Tekrar</button>
+    <button class="review-btn confirm" id="review-confirm-btn">Onayla</button>
+  </div>
+</div>
+
+<!-- Manual Menu Fallback -->
+<div class="screen" id="manual-screen">
+  <h2>Menu</h2>
+  <div id="manual-menu-list"></div>
+  <div class="manual-bottom">
+    <div class="manual-total" id="manual-total">0 TL</div>
+    <button class="manual-cancel" id="manual-cancel-btn">Iptal</button>
+    <button class="manual-submit" id="manual-submit-btn" disabled>Onayla</button>
+  </div>
+</div>
+
+<!-- Thanks -->
+<div class="screen" id="thanks-screen">
+  <h1>Tesekkurler!</h1>
+  <p>Siparisiniz alindi</p>
+  <div class="countdown" id="countdown">5</div>
+</div>
+
+<!-- Error -->
+<div class="screen" id="error-screen">
+  <h2>Hata</h2>
+  <p id="error-msg"></p>
+  <button class="big-btn" id="error-back-btn" style="font-size:1rem; padding:.8rem 1.5rem;">Geri Don</button>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  let menu = null;
+  let currency = 'TL';
+  let parsedOrder = [];
+  let robotReady = false;
+  let wsConnected = false;
+  let ws = null;
+  let manualQtys = {};
+
+  const screens = {
+    notready: document.getElementById('notready-screen'),
+    welcome: document.getElementById('welcome-screen'),
+    listen: document.getElementById('listen-screen'),
+    review: document.getElementById('review-screen'),
+    manual: document.getElementById('manual-screen'),
+    thanks: document.getElementById('thanks-screen'),
+    error: document.getElementById('error-screen'),
+  };
+
+  function showScreen(name) {
+    Object.values(screens).forEach(s => s.classList.remove('active'));
+    screens[name].classList.add('active');
+  }
+
+  // --- WebSocket for robot state ---
+  function connectWS() {
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(proto + '//' + location.host + '/ws');
+    ws.onopen = () => { wsConnected = true; };
+    ws.onclose = () => {
+      wsConnected = false;
+      robotReady = false;
+      showScreen('notready');
+      setTimeout(connectWS, 2000);
+    };
+    ws.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.delivery) {
+          const st = data.delivery.state;
+          const wasReady = robotReady;
+          robotReady = (st === 'IDLE' || st === 'ARRIVED');
+          if (!wasReady && robotReady) {
+            const cur = document.querySelector('.screen.active');
+            if (cur === screens.notready) showScreen('welcome');
+          } else if (wasReady && !robotReady) {
+            const cur = document.querySelector('.screen.active');
+            if (cur === screens.welcome) showScreen('notready');
+          }
+        }
+      } catch(err) {}
+    };
+  }
+  connectWS();
+
+  // --- Load menu ---
+  async function loadMenu() {
+    try {
+      const resp = await fetch('/api/menu');
+      const data = await resp.json();
+      menu = data.menu || data;
+      currency = (menu.currency || data.currency || 'TL');
+      if (menu.categories) buildManualMenu();
+    } catch(err) {
+      console.error('Failed to load menu:', err);
+    }
+  }
+  loadMenu();
+
+  // --- Speech Recognition ---
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition = null;
+  let hasSpeech = !!SpeechRecognition;
+
+  if (!hasSpeech) {
+    document.getElementById('start-btn').style.display = 'none';
+    document.getElementById('manual-btn').textContent = 'Siparis Ver';
+  }
+
+  function startListening() {
+    if (!hasSpeech) { showScreen('manual'); return; }
+    showScreen('listen');
+    document.getElementById('transcript-box').textContent = '';
+
+    recognition = new SpeechRecognition();
+    recognition.lang = 'tr-TR';
+    recognition.continuous = false;
+    recognition.interimResults = true;
+
+    recognition.onresult = (event) => {
+      let transcript = '';
+      for (let i = 0; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript;
+      }
+      document.getElementById('transcript-box').textContent = transcript;
+
+      if (event.results[event.results.length - 1].isFinal) {
+        recognition.stop();
+        processTranscript(transcript);
+      }
+    };
+
+    recognition.onerror = (event) => {
+      if (event.error === 'no-speech') {
+        document.getElementById('transcript-box').textContent = 'Ses algilanamadi, tekrar deneyin.';
+        setTimeout(() => showScreen('welcome'), 2000);
+      } else if (event.error === 'not-allowed') {
+        hasSpeech = false;
+        document.getElementById('start-btn').style.display = 'none';
+        document.getElementById('manual-btn').textContent = 'Siparis Ver';
+        showScreen('welcome');
+      }
+    };
+
+    recognition.onend = () => {};
+    recognition.start();
+  }
+
+  // --- Turkish number parsing ---
+  const TR_NUMBERS = {
+    'bir': 1, 'iki': 2, 'uc': 3, 'dort': 4, 'bes': 5,
+    'alti': 6, 'yedi': 7, 'sekiz': 8, 'dokuz': 9, 'on': 10,
+    '\u00fc\u00e7': 3, 'd\u00f6rt': 4, 'be\u015f': 5, 'alt\u0131': 6,
+  };
+
+  function normalizeText(text) {
+    return text.toLowerCase()
+      .replace(/\u0130/g, 'i')  // İ -> i
+      .replace(/\u0131/g, 'i')  // ı -> i
+      .trim();
+  }
+
+  function getAllMenuItems() {
+    if (!menu || !menu.categories) return [];
+    const items = [];
+    for (const cat of menu.categories) {
+      for (const item of cat.items) {
+        items.push(item);
+      }
+    }
+    return items;
+  }
+
+  function processTranscript(rawText) {
+    const text = normalizeText(rawText);
+    const tokens = text.split(/[\s,]+/).filter(t => t.length > 0);
+    const items = getAllMenuItems();
+    parsedOrder = [];
+
+    const normalizedAliases = items.map(item => ({
+      item,
+      aliases: (item.aliases || [item.name]).map(a => normalizeText(a)),
+    }));
+
+    let i = 0;
+    while (i < tokens.length) {
+      let qty = 1;
+      let foundQty = false;
+
+      const digit = parseInt(tokens[i]);
+      if (!isNaN(digit) && digit > 0 && digit <= 99) {
+        qty = digit; foundQty = true; i++;
+      } else if (TR_NUMBERS[tokens[i]] !== undefined) {
+        qty = TR_NUMBERS[tokens[i]]; foundQty = true; i++;
+      }
+      if (i >= tokens.length) break;
+
+      let tane = false;
+      if (tokens[i] === 'tane' || tokens[i] === 'adet') {
+        tane = true; i++;
+      }
+      if (i >= tokens.length) break;
+
+      let matched = false;
+      for (const {item, aliases} of normalizedAliases) {
+        for (const alias of aliases) {
+          const aliasTokens = alias.split(/\s+/);
+          const slice = tokens.slice(i, i + aliasTokens.length).join(' ');
+          if (slice === alias) {
+            const existing = parsedOrder.find(o => o.id === item.id);
+            if (existing) { existing.qty += qty; }
+            else { parsedOrder.push({ id: item.id, name: item.name, qty, price: item.price }); }
+            i += aliasTokens.length;
+            matched = true;
+            break;
+          }
+        }
+        if (matched) break;
+      }
+
+      if (!matched) {
+        if (!foundQty && !tane) {
+          for (const {item, aliases} of normalizedAliases) {
+            for (const alias of aliases) {
+              if (alias.includes(tokens[i]) && tokens[i].length >= 3) {
+                const existing = parsedOrder.find(o => o.id === item.id);
+                if (existing) { existing.qty += 1; }
+                else { parsedOrder.push({ id: item.id, name: item.name, qty: 1, price: item.price }); }
+                matched = true;
+                break;
+              }
+            }
+            if (matched) break;
+          }
+        }
+        i++;
+      }
+    }
+
+    if (parsedOrder.length === 0) {
+      document.getElementById('transcript-box').textContent = rawText + '\n\n(Urun bulunamadi, tekrar deneyin)';
+      setTimeout(() => showScreen('welcome'), 2500);
+      return;
+    }
+
+    showOrderReview();
+  }
+
+  function showOrderReview() {
+    const tbody = document.getElementById('order-items');
+    tbody.innerHTML = '';
+    let total = 0;
+    for (const item of parsedOrder) {
+      const lineTotal = item.qty * item.price;
+      total += lineTotal;
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + item.name + '</td><td class="qty">' + item.qty + '</td><td class="price">' + lineTotal.toFixed(0) + ' ' + currency + '</td>';
+      tbody.appendChild(tr);
+    }
+    document.getElementById('order-total').textContent = 'Toplam: ' + total.toFixed(0) + ' ' + currency;
+    showScreen('review');
+  }
+
+  // --- Manual fallback menu ---
+  function buildManualMenu() {
+    const container = document.getElementById('manual-menu-list');
+    container.innerHTML = '';
+    manualQtys = {};
+
+    for (const cat of menu.categories) {
+      const catDiv = document.createElement('div');
+      catDiv.className = 'menu-category';
+      catDiv.innerHTML = '<div class="menu-cat-name">' + cat.name + '</div>';
+
+      for (const item of cat.items) {
+        manualQtys[item.id] = 0;
+        const row = document.createElement('div');
+        row.className = 'menu-item-row';
+        row.innerHTML =
+          '<div class="menu-item-name">' + item.name + '</div>' +
+          '<div class="menu-item-price">' + item.price.toFixed(0) + ' ' + currency + '</div>' +
+          '<div class="qty-ctrl">' +
+            '<button class="qty-btn" data-id="' + item.id + '" data-dir="-1">-</button>' +
+            '<span class="qty-val" id="mq-' + item.id + '">0</span>' +
+            '<button class="qty-btn" data-id="' + item.id + '" data-dir="1">+</button>' +
+          '</div>';
+        catDiv.appendChild(row);
+      }
+      container.appendChild(catDiv);
+    }
+
+    container.querySelectorAll('.qty-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.id;
+        const dir = parseInt(btn.dataset.dir);
+        manualQtys[id] = Math.max(0, (manualQtys[id] || 0) + dir);
+        document.getElementById('mq-' + id).textContent = manualQtys[id];
+        updateManualTotal();
+      });
+    });
+  }
+
+  function updateManualTotal() {
+    const items = getAllMenuItems();
+    let total = 0;
+    let hasItems = false;
+    for (const item of items) {
+      const q = manualQtys[item.id] || 0;
+      if (q > 0) { total += q * item.price; hasItems = true; }
+    }
+    document.getElementById('manual-total').textContent = total.toFixed(0) + ' ' + currency;
+    document.getElementById('manual-submit-btn').disabled = !hasItems;
+  }
+
+  function getManualOrder() {
+    const items = getAllMenuItems();
+    const order = [];
+    for (const item of items) {
+      const q = manualQtys[item.id] || 0;
+      if (q > 0) order.push({ id: item.id, name: item.name, qty: q, price: item.price });
+    }
+    return order;
+  }
+
+  // --- Submit order ---
+  async function submitOrder(items) {
+    let total = 0;
+    for (const it of items) total += it.qty * it.price;
+
+    try {
+      const resp = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items, total }),
+      });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      showThanks();
+    } catch(err) {
+      document.getElementById('error-msg').textContent = 'Siparis gonderilemedi: ' + err.message;
+      showScreen('error');
+    }
+  }
+
+  function showThanks() {
+    showScreen('thanks');
+    let count = 5;
+    const el = document.getElementById('countdown');
+    el.textContent = count;
+    const iv = setInterval(() => {
+      count--;
+      el.textContent = count;
+      if (count <= 0) {
+        clearInterval(iv);
+        resetAll();
+      }
+    }, 1000);
+  }
+
+  function resetAll() {
+    parsedOrder = [];
+    Object.keys(manualQtys).forEach(k => { manualQtys[k] = 0; });
+    document.querySelectorAll('.qty-val').forEach(el => { el.textContent = '0'; });
+    updateManualTotal();
+
+    if (robotReady) showScreen('welcome');
+    else showScreen('notready');
+  }
+
+  // --- Event listeners ---
+  document.getElementById('start-btn').addEventListener('click', startListening);
+  document.getElementById('manual-btn').addEventListener('click', () => {
+    if (menu && menu.categories) {
+      Object.keys(manualQtys).forEach(k => { manualQtys[k] = 0; });
+      document.querySelectorAll('.qty-val').forEach(el => { el.textContent = '0'; });
+      updateManualTotal();
+      showScreen('manual');
+    }
+  });
+  document.getElementById('stop-listen-btn').addEventListener('click', () => {
+    if (recognition) recognition.abort();
+    showScreen('welcome');
+  });
+  document.getElementById('review-confirm-btn').addEventListener('click', () => submitOrder(parsedOrder));
+  document.getElementById('review-retry-btn').addEventListener('click', startListening);
+  document.getElementById('review-cancel-btn').addEventListener('click', () => showScreen('welcome'));
+  document.getElementById('manual-submit-btn').addEventListener('click', () => submitOrder(getManualOrder()));
+  document.getElementById('manual-cancel-btn').addEventListener('click', () => showScreen('welcome'));
+  document.getElementById('error-back-btn').addEventListener('click', () => showScreen('welcome'));
+
+  showScreen('notready');
+})();
+</script>
+</body>
+</html>

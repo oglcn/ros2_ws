@@ -1,0 +1,29 @@
+menu:
+  categories:
+    - name: "Icecekler"
+      items:
+        - id: "cay"
+          name: "Cay"
+          aliases: ["cay", "cayi"]
+          price: 25.0
+        - id: "kahve"
+          name: "Turk Kahvesi"
+          aliases: ["kahve", "turk kahvesi", "kahvesi"]
+          price: 40.0
+        - id: "su"
+          name: "Su"
+          aliases: ["su", "suyun"]
+          price: 10.0
+
+    - name: "Yiyecekler"
+      items:
+        - id: "sandvic"
+          name: "Sandvic"
+          aliases: ["sandvic", "sandovic", "sandvici"]
+          price: 60.0
+
+  currency: "TL"
+
+ordering:
+  auto_return_home: true
+  return_delay: 5.0

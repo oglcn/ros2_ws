@@ -23,7 +23,7 @@ def generate_launch_description():
     bringup_dir = get_package_share_directory('delivery_robot_bringup')
 
     ekf_config = os.path.join(bringup_dir, 'config', 'ekf.yaml')
-    aruco_markers_config = os.path.join(bringup_dir, 'config', 'aruco_markers.yaml')
+    default_markers = os.path.join(bringup_dir, 'config', 'aruco_markers.yaml')
 
     orb_slam3_vocab = '/home/pi/third_party/ORB_SLAM3/Vocabulary/ORBvoc.txt'
     orb_slam3_settings = '/home/pi/ros2_ws/src/delivery_robot/orb_slam3_ros/config/orb_slam3_pi5.yaml'
@@ -33,9 +33,14 @@ def generate_launch_description():
                               description='Launch ArUco detector'),
         DeclareLaunchArgument('use_ekf', default_value='true',
                               description='Launch robot_localization EKF'),
+        DeclareLaunchArgument('use_vslam', default_value='true',
+                              description='Launch ORB-SLAM3 visual odometry'),
+        DeclareLaunchArgument('marker_map_file', default_value=default_markers,
+                              description='Path to ArUco marker map YAML file'),
 
         # ORB-SLAM3 visual odometry
         Node(
+            condition=IfCondition(LaunchConfiguration('use_vslam')),
             package='orb_slam3_ros',
             executable='orb_slam3_node',
             name='orb_slam3',
@@ -49,16 +54,16 @@ def generate_launch_description():
             output='screen',
         ),
 
-        # ArUco marker detector (optional)
+        # ArUco marker detector for localization (publishes /aruco/pose in map frame)
         Node(
             condition=IfCondition(LaunchConfiguration('use_aruco')),
             package='aruco_detector',
             executable='aruco_detector_node',
-            name='aruco_detector',
+            name='aruco_localizer',
             parameters=[{
-                'marker_size': 0.15,
+                'marker_size': 0.17,
                 'dictionary': 'DICT_4X4_50',
-                'marker_map_file': aruco_markers_config,
+                'marker_map_file': LaunchConfiguration('marker_map_file'),
                 'detection_rate_hz': 10.0,
             }],
             output='screen',

@@ -1,0 +1,30 @@
+# MPU6050 IMU configuration
+
+imu_driver:
+  ros__parameters:
+    i2c_bus: 1
+    i2c_address: 0x68
+    publish_rate: 30.0
+    frame_id: imu_link
+
+    # Sensor range: 0=±2g/±250°/s, 1=±4g/±500, 2=±8g/±1000, 3=±16g/±2000
+    accel_range: 0
+    gyro_range: 0
+
+    # Digital low-pass filter: 0=260Hz, 1=184Hz, 2=94Hz, 3=44Hz, 4=21Hz, 5=10Hz
+    dlpf_bandwidth: 3
+
+    # Startup calibration: set to 0 to skip (use offsets below instead)
+    calibrate_samples: 0
+
+    # Calibration offsets from calibrate_imu (2026-06-26, 2000 samples)
+    gyro_offset_x: 0.038821
+    gyro_offset_y: 0.035561
+    gyro_offset_z: 0.002172
+    accel_offset_x: 0.4794
+    accel_offset_y: -0.4601
+    accel_offset_z: 0.8732
+
+    # Heading deadband: ignore gyro Z below this (rad/s) when integrating heading.
+    # Prevents slow drift from accumulating into the heading value.
+    heading_deadband: 0.015

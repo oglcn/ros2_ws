@@ -8,7 +8,7 @@
 | Camera | Pi Camera Module 3 (IMX708, monocular) |
 | Motor drivers | 2x L298N dual H-bridge boards |
 | Motors | 4x DC motors with mecanum wheels |
-| IMU | MPU9250 (I2C, pending working module) |
+| IMU | MPU6050 (I2C, 6-axis: accel + gyro) |
 
 ## GPIO Pinout (Pi 5, gpiochip4 / RP1)
 
@@ -88,6 +88,24 @@ RR = vx - vy + ω
 
 Where `vx` = forward, `vy` = strafe left, `ω` = counter-clockwise rotation.
 
+### Gyro Yaw-Rate Correction
+
+The motor driver subscribes to `/imu/data_raw` and applies a PID correction to the `ω` term in the kinematics above. This counteracts rotational drift caused by unequal motor characteristics or uneven weight distribution. A high-pass filter on the gyro signal rejects slow sensor drift while passing through real rotation errors.
+
+Configuration in `motor_pins.yaml` under `gyro_correction`:
+
+| Parameter | Default | Description |
+|---|---|---|
+| `enabled` | `true` | Master switch |
+| `kp` | `0.5` | Proportional gain |
+| `ki` | `0.1` | Integral gain (fixes persistent bias) |
+| `kd` | `0.0` | Derivative gain (normally not needed) |
+| `i_max` | `0.3` | Integral windup clamp |
+| `highpass_rc` | `2.0` | High-pass time constant in seconds (drift rejection) |
+| `deadband` | `0.01` | Ignore gyro readings below this (rad/s) |
+
+**Tuning:** Start with only P (set `ki: 0.0`). Increase `kp` until the robot holds a straight line. If it oscillates (wobbles), reduce `kp`. Then add small `ki` (0.05-0.2) to eliminate steady-state drift. The correction auto-resets when the robot stops.
+
 ## Camera
 
 - Connected via Pi CSI ribbon cable
@@ -128,11 +146,35 @@ Then open `http://10.171.31.166:8080` on your phone or laptop.
 
 Ctrl+C in the terminal to stop all nodes.
 
-## Future Hardware (Phase 2+)
+## IMU (MPU6050)
 
-| Component | Interface | Purpose |
+| Property | Value |
+|---|---|
+| Sensor | MPU6050 (6-axis: 3-axis accelerometer + 3-axis gyroscope) |
+| Interface | I2C bus 1 (SDA=GPIO 2/Pin 3, SCL=GPIO 3/Pin 5) |
+| Address | 0x68 (default) |
+| Required group | `i2c` (user `pi` must be in this group) |
+
+**Wiring:**
+
+| MPU6050 Pin | Pi 5 Pin | Notes |
 |---|---|---|
-| MPU9250 IMU | I2C (SDA=GPIO 2/Pin 3, SCL=GPIO 3/Pin 5) | Orientation, rotation rate, compass heading for EKF |
-| ArUco markers | Camera (visual) | Absolute position fixes |
+| VCC | Pin 1 (3.3V) | 3.3V supply (do NOT use 5V) |
+| GND | Pin 6 (GND) | Common ground with Pi |
+| SDA | Pin 3 (GPIO 2) | I2C data |
+| SCL | Pin 5 (GPIO 3) | I2C clock |
+| AD0 | GND or unconnected | Address bit: GND=0x68, VCC=0x69 |
+| INT | (unused) | Interrupt pin, not connected |
+
+**Mounting:** Mount flat on the robot chassis, aligned with `base_link` axes (X forward, Y left, Z up). The static TF `base_link -> imu_link` is set to (0, 0, 0.05m) in the launch file -- adjust if your mounting differs.
+
+## ArUco Markers
+
+| Property | Value |
+|---|---|
+| Type | Printed ArUco markers (DICT_4X4_50) |
+| Size | 15cm x 15cm |
+| Interface | Camera (visual detection) |
+| Purpose | Absolute position fixes for EKF |
 
 See [ROADMAP.md](ROADMAP.md) for the full development plan.

@@ -3,7 +3,7 @@ name: robot-onboard
 description: >-
   Onboarding for the delivery robot project. Use when working on any file in
   ros2_ws/src/delivery_robot/, or when the user mentions the robot, motor
-  driver, camera driver, web UI, ArUco, VSLAM, or mecanum wheels.
+  driver, camera driver, web UI, ArUco, VSLAM, IMU, MPU6050, or mecanum wheels.
 ---
 
 # Delivery Robot -- Agent Onboarding
@@ -24,6 +24,7 @@ description: >-
 | `delivery_robot_msgs` | `msg/MotorStatus.msg` | Custom message: `float32[4]`, `bool[4]`, `string` |
 | `delivery_robot_bringup` | `launch/bringup.launch.py` | Launch files + YAML config in `config/` |
 | `aruco_detector` | `aruco_detector/aruco_detector_node.py` | Detects ArUco markers, publishes PoseWithCovarianceStamped + TF |
+| `imu_driver` | `imu_driver/imu_driver_node.py` | MPU6050 I2C driver: publishes `sensor_msgs/Imu` at 50 Hz to `/imu/data_raw` |
 | `orb_slam3_ros` | `src/orb_slam3_node.cpp` | ORB-SLAM3 monocular wrapper: publishes `/visual_odom` + TF `odom→base_link` |
 
 Frontend: `robot_web_ui/robot_web_ui/static/index.html` -- vanilla JS, no build step.
@@ -35,6 +36,8 @@ Frontend: `robot_web_ui/robot_web_ui/static/index.html` -- vanilla JS, no build 
 2. **gpiochip4**: Pi 5 uses gpiochip4 (RP1) for the 40-pin header. Always use `lgpio.gpiochip_open(4)`. Configured via `gpio_chip` param in `motor_pins.yaml`.
 
 3. **dialout group**: GPIO access requires the `dialout` group. The launch script uses `sg dialout`. If you get "can not open gpiochip", check group membership.
+
+3b. **i2c group**: IMU (I2C) access requires the `i2c` group. Run `sudo usermod -aG i2c pi` and re-login. If you get "Permission denied" on `/dev/i2c-1`, check group membership.
 
 4. **ROS2 fixed-size arrays in Python**: Do NOT assign a list to `msg.duty_cycles` or `msg.active`. Assign each element explicitly:
    ```python
@@ -84,7 +87,8 @@ ros2 run pi_camera_driver calibrate_camera -- --rows 7 --cols 9 --square-size 0.
 | Camera | `delivery_robot_bringup/config/camera.yaml` | `width`, `height`, `framerate`, `quality`, `publish_raw`, `calibration_file` |
 | Camera calibration | `delivery_robot_bringup/config/camera_calibration.yaml` | Intrinsics (K, D, R, P matrices) |
 | ArUco markers | `delivery_robot_bringup/config/aruco_markers.yaml` | `marker_size`, `dictionary`, marker world positions |
-| EKF | `delivery_robot_bringup/config/ekf.yaml` | `robot_localization` config: odom0, pose0, covariances |
+| IMU | `delivery_robot_bringup/config/imu.yaml` | I2C bus/address, publish rate, DLPF, calibration offsets |
+| EKF | `delivery_robot_bringup/config/ekf.yaml` | `robot_localization` config: odom0, pose0, imu0, covariances |
 | ORB-SLAM3 | `orb_slam3_ros/config/orb_slam3_pi5.yaml` | Camera intrinsics, ORB features (600), scale levels (6) |
 
 After editing config, rebuild `delivery_robot_bringup` and restart.

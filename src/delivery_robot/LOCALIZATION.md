@@ -6,8 +6,9 @@ The delivery robot uses a sensor fusion approach for indoor localization:
 
 1. **ORB-SLAM3** provides continuous visual odometry (relative motion tracking)
 2. **ArUco markers** provide periodic absolute position fixes (drift correction)
-3. **robot_localization EKF** fuses both into a single smooth pose estimate
-4. **Web UI** visualizes everything in real-time
+3. **MPU6050 IMU** provides gyroscope yaw rate and linear acceleration
+4. **robot_localization EKF** fuses all three into a single smooth pose estimate
+5. **Web UI** visualizes everything in real-time
 
 ---
 
@@ -167,6 +168,8 @@ Rebuild `delivery_robot_bringup` after editing.
 | Calibration RMS > 1.0 | Poor frame variety | Redo calibration with more tilts, distances, and coverage |
 | Scale drift | Monocular VSLAM has no inherent scale | Place at least 2 ArUco markers to establish metric scale |
 | High memory usage | ORB-SLAM3 map growing | Reduce `nFeatures` in `orb_slam3_pi5.yaml` (current: 600) |
+| IMU not publishing | I2C device not found | Check wiring; run `sudo i2cdetect -y 1` (expect 0x68); verify `i2c` group |
+| IMU gyro drift | Startup calibration skipped or bad | Keep robot still during first 2s at startup; or run `ros2 run imu_driver calibrate_imu` |
 
 ---
 

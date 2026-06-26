@@ -1,0 +1,14 @@
+mission_manager:
+  ros__parameters:
+    linear_speed: 0.15
+    angular_speed: 0.12
+    heading_tolerance: 15.0
+    correction_gain: 0.5
+    arrival_radius: 0.5
+    standoff_distance: 1.1
+    waypoint_tolerance: 0.15
+    slowdown_radius: 0.3
+    navigation_timeout: 120.0
+    ekf_timeout: 2.0
+    control_rate: 10.0
+    marker_map_file: ""
